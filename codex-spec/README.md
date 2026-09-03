@@ -38,7 +38,7 @@
 4. До изменений сверить спецификацию с реальным `package.json`, lockfile, кодом, git diff и результатами завершённых задач.
 5. Выполнить одну задачу, пройти её verification и выдать completion report.
 
-Первый task завершён: [P00-T01-project-bootstrap.md](tasks/P00-T01-project-bootstrap.md). Следующие разблокированные задачи P00: `P00-T02`, `P00-T03`, `P00-T04`, `P00-T06`; рекомендуемый следующий task — [P00-T02-content-pipeline-spike.md](tasks/P00-T02-content-pipeline-spike.md).
+Завершены первые tasks: [P00-T01-project-bootstrap.md](tasks/P00-T01-project-bootstrap.md) и [P00-T02-content-pipeline-spike.md](tasks/P00-T02-content-pipeline-spike.md). Следующие разблокированные задачи P00: `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`; рекомендуемый следующий task — [P00-T03-storage-atomicity-spike.md](tasks/P00-T03-storage-atomicity-spike.md).
 
 ## Именование
 
@@ -46,4 +46,4 @@
 
 ## Статус
 
-Комплект спецификаций: `COMPLETE · QA PASSED`. Реализация: `P00-T01 COMPLETE · P00 SPIKES UNBLOCKED`. Завершённые task IDs: `P00-T01`. Целевые команды P00-T01 сверены с созданным `package.json` и `pnpm-lock.yaml`.
+Комплект спецификаций: `COMPLETE · QA PASSED`. Реализация: `P00-T01/P00-T02 COMPLETE · P00 SPIKES CONTINUE`. Завершённые task IDs: `P00-T01`, `P00-T02`. Целевые команды P00-T02 прошли verification; pipeline limits остаются P00 proposal до production/browser rerun.

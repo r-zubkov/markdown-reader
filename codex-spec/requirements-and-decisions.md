@@ -149,6 +149,13 @@
 | DFR-005 | Typography user controls. | После visual QA двух базовых тем. |
 | DFR-006 | Cross-tab coordination guarantees. | Когда E2E докажет реальный конфликт; MVP лишь не должен повреждать данные. |
 
+### Evidence updates
+
+| ID | Update | Status |
+|---|---|---|
+| DFR-001 | P00-T02 добавил `src/domain/content/pipeline-limits.ts` и `docs/benchmarks/pipeline-spike.md`: proposal для `maxFileBytes=1_250_000`, chunk cost, oversized-node/code fallback и batch shape подтверждён deterministic corpus/security/bench tests. | Частично закрыто только для content pipeline. DOM window, overscan, browser memory и anchor tolerance остаются за P00-T04/P00-T05/P00-T06. |
+| DFR-002 | P00-T02 предлагает expanded explicit lowlight set: `bash`, `c`, `cpp`, `csharp`, `css`, `diff`, `go`, `graphql`, `ini`, `java`, `javascript`, `json`, `kotlin`, `less`, `lua`, `makefile`, `markdown`, `objectivec`, `perl`, `php`, `plaintext`, `python`, `r`, `ruby`, `rust`, `scss`, `shell`, `sql`, `swift`, `typescript`, `wasm`, `xml`, `yaml`; aliases documented in spike report. Auto-detect остаётся gated by size/confidence и не должен подсвечивать low/medium-confidence unlabeled code. | Proposal до production rerun в P02-T01. |
+
 ## Трассировка
 
 `AC` означает acceptance criteria соответствующего task; точные проверки перечислены в task и `codex-spec/testing-and-quality.md`.

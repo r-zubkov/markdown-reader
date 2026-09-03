@@ -57,6 +57,8 @@ UI не хранит полный Markdown-корпус. Persistent source of tr
 
 Bootstrap [P00-T01: Project bootstrap](codex-spec/tasks/P00-T01-project-bootstrap.md) завершён: в репозитории есть `package.json`, `pnpm-lock.yaml`, Vite/React entry, строгие TS-конфиги, ESLint foundation, Vitest setup и Playwright config.
 
+Pipeline spike [P00-T02: Content pipeline and limits spike](codex-spec/tasks/P00-T02-content-pipeline-spike.md) завершён: добавлены prototype modules для Markdown pipeline, deterministic corpus, security/bench tests и [pipeline-spike report](docs/benchmarks/pipeline-spike.md). Лимиты пока являются P00 proposal, а не release SLA.
+
 Проверенная среда:
 
 - Node `>=22.22.0`;
@@ -84,14 +86,15 @@ corepack pnpm test:e2e:list
 - [codex-spec/README.md](codex-spec/README.md) — карта требований, архитектуры, дизайна, feature-spec, roadmap и задач.
 - [project-source-of-truth.md](codex-spec/project-source-of-truth.md) — границы продукта и MVP.
 - [implementation-roadmap.md](codex-spec/implementation-roadmap.md) — последовательность вертикальных этапов.
+- [pipeline-spike.md](docs/benchmarks/pipeline-spike.md) — результаты P00-T02 по corpus, security, limits и grammar policy.
 - [tasks/](codex-spec/tasks/) — атомарные задания для реализации по одному.
 
 ## Текущий статус
 
 - Спецификация: `COMPLETE · QA PASSED`.
-- Реализация: `P00-T01 COMPLETE · P00 SPIKES UNBLOCKED`.
-- Завершённые task IDs: `P00-T01`.
-- Следующие разблокированные задачи: `P00-T02`, `P00-T03`, `P00-T04`, `P00-T06`.
+- Реализация: `P00-T01/P00-T02 COMPLETE · P00 SPIKES CONTINUE`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`.
+- Следующие разблокированные задачи: `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`.
 
 ## Текущая структура репозитория
 
@@ -126,15 +129,23 @@ codex-spec/
   implementation-status.md
   execution-playbook.md
   final-acceptance-checklist.md
+docs/
+  benchmarks/
+    pipeline-spike.md
 src/
   app/
+  domain/
+    content/
   main.tsx
   styles/
   test/
+    bench/
+    corpus/
+    security/
   workers/
 tools/
   eslint-rules/
 e2e/
 ```
 
-Эта структура отражает только bootstrap foundation. Производственные feature-модули, IndexedDB schema, Markdown pipeline, shadcn primitives и PWA shell добавляются последующими task-файлами.
+Эта структура отражает bootstrap foundation и P00-T02 pipeline spike. Производственные feature-модули, IndexedDB schema, shadcn primitives и PWA shell добавляются последующими task-файлами.
