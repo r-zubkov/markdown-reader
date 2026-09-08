@@ -1,167 +1,168 @@
-# Requirements and decisions
+# Requirements and Decisions
 
-## Source precedence used
+## Source Precedence Used
 
-1. Последние явные решения пользователя: продукт — веб-читалка Markdown-файлов, а не специализированная читалка длинных изданий; desktop/mobile равноприоритетны; light/dark; technical editorial.
-2. Security, data integrity и фактические platform constraints.
-3. Technical blueprint — implementation.
-4. Product blueprint — behavior/scope.
-5. Design blueprint — UX/presentation; как более поздний документ он уточняет UI stack.
-6. Reversible assumptions этого комплекта.
+1. Latest explicit user decisions: the product is a web reader for Markdown files, not a specialized long-publication reader; desktop/mobile have equal priority; light/dark themes; technical-editorial direction; execution documentation is English-only.
+2. Security, data integrity and actual platform constraints.
+3. Technical blueprint for implementation.
+4. Product blueprint for behavior/scope.
+5. Design blueprint for UX/presentation; as the later document, it refines the UI stack.
+6. Reversible assumptions in this specification set.
 
-## Нормализованные требования
+## Normalized Requirements
 
 ### Product
 
-| ID | Проверяемое правило | Source |
+| ID | Verifiable rule | Source |
 |---|---|---|
-| PRD-001 | Приложение работает без прикладного backend; Markdown-документы и прогресс остаются в текущем origin/profile. | SOURCE |
-| PRD-002 | Import принимает ровно один `.md`, проверяет UTF-8 и не публикует документ до полного успеха. | SOURCE |
-| PRD-003 | Library переживает reload, показывает title/progress и позволяет открыть/продолжить документ. | SOURCE |
-| PRD-004 | Reader отображает CommonMark + GFM, включая tables, task lists, footnotes и fenced code. | SOURCE |
-| PRD-005 | Outline всего документа содержит иерархию `H1–H3`; выбор heading приводит к нему в любом режиме. | SOURCE |
-| PRD-006 | Continuous mode выглядит как единая лента без «загрузить ещё» и не монтирует весь крупный документ. | SOURCE |
-| PRD-007 | Sections mode показывает одну логическую часть, pager и `Раздел N из M · Название`. | SOURCE |
-| PRD-008 | До явного выбора пользователя initial mode определяется измеренным порогом размера/стоимости документа. | SOURCE + DERIVED |
-| PRD-009 | Доступны strategies `auto/h1/h2/h3/whole`; они определяют section layout, но не отключают chunks. | SOURCE + DERIVED |
-| PRD-010 | Весь контент доступен и сохраняет порядок; цельный AST block не режется посередине. | SOURCE |
-| PRD-011 | Progress сохраняется автоматически и восстанавливает semantic position после reload/mode/strategy switch. | SOURCE |
-| PRD-012 | Exact duplicate по SHA-256 не создаётся; предлагается открыть существующий документ. | SOURCE |
-| PRD-013 | Возможный update по normalized filename/title предлагает replace/separate/cancel; replace сохраняет `documentId` и пытается map progress. | SOURCE |
-| PRD-014 | Delete требует явного подтверждения и удаляет document, versions, chunks, settings/progress транзакционно. | SOURCE |
-| PRD-015 | После первого online load app shell и локальные документы доступны offline; first offline visit не обещается. | SOURCE |
-| PRD-016 | MVP содержит `system/light/dark`; ручной выбор сохраняется глобально. | SOURCE (latest explicit) |
-| PRD-017 | HTTPS remote images могут загружаться только при разрешённой preference; relative local resources показывают unsupported placeholder. | SOURCE + DERIVED |
-| PRD-018 | Search, editing, backup, sync, notes, bookmarks, folders/assets и backend не входят в MVP. | SOURCE |
+| PRD-001 | The app works without an application backend; Markdown documents and progress remain in the current origin/profile. | SOURCE |
+| PRD-002 | Import accepts exactly one `.md`, validates UTF-8 and does not publish a document until complete success. | SOURCE |
+| PRD-003 | Library survives reload, shows title/progress and allows opening/continuing a document. | SOURCE |
+| PRD-004 | Reader displays CommonMark + GFM, including tables, task lists, footnotes and fenced code. | SOURCE |
+| PRD-005 | The full-document outline contains the `H1-H3` hierarchy; selecting a heading navigates to it in any mode. | SOURCE |
+| PRD-006 | Continuous mode looks like one uninterrupted stream without load-more controls and does not mount the whole large document. | SOURCE |
+| PRD-007 | Sections mode shows one logical part, pager and a localized section counter with title. | SOURCE |
+| PRD-008 | Before explicit user choice, initial mode is determined by a measured document size/cost threshold. | SOURCE + DERIVED |
+| PRD-009 | Strategies `auto/h1/h2/h3/whole` are available; they define section layout but do not disable chunks. | SOURCE + DERIVED |
+| PRD-010 | All content is available and preserves order; a whole AST block is not split in the middle. | SOURCE |
+| PRD-011 | Progress is saved automatically and restores semantic position after reload/mode/strategy switch. | SOURCE |
+| PRD-012 | Exact duplicate by SHA-256 is not created; the user is offered the existing document. | SOURCE |
+| PRD-013 | Possible update by normalized filename/title offers replace/separate/cancel; replace keeps `documentId` and tries to map progress. | SOURCE |
+| PRD-014 | Delete requires explicit confirmation and transactionally deletes the document, versions, chunks, settings/progress. | SOURCE |
+| PRD-015 | After first online load, the app shell and local documents are available offline; first offline visit is not promised. | SOURCE |
+| PRD-016 | MVP includes `system/light/dark`; manual choice persists globally. | SOURCE (latest explicit) |
+| PRD-017 | HTTPS remote images may load only when the preference permits it; relative local resources show an unsupported placeholder. | SOURCE + DERIVED |
+| PRD-018 | Search, editing, backup, sync, notes, bookmarks, folders/assets and backend are outside MVP. | SOURCE |
 
 ### Technical
 
-| ID | Проверяемое правило | Source |
+| ID | Verifiable rule | Source |
 |---|---|---|
 | TECH-001 | Greenfield stack: React 19.2 current compatible patch, TypeScript strict, Vite 8.1, React Router 8 Declarative, Node `>=22.22`. | SOURCE + VERIFIED |
-| TECH-002 | Domain не зависит от React/DOM/Dexie; UI вызывает use cases/ports; repository — единственная IndexedDB boundary. | SOURCE |
-| TECH-003 | Decode/hash/parse/partition/sanitize/highlight выполняются в Web Worker с versioned typed protocol, progress и cancel. | SOURCE |
-| TECH-004 | Pipeline использует unified + remark parse/GFM → HAST; heading/source positions и anchors извлекаются до serialization. | SOURCE |
-| TECH-005 | Raw HTML инертен; allowlist sanitizer и URL policy выполняются до `SanitizedHtml`; единственная injection boundary — `SafeHtmlChunk`. | SOURCE |
-| TECH-006 | Highlight использует lowlight и ограниченные grammars; unknown/error/oversized code получает escaped plain-code fallback. | SOURCE |
-| TECH-007 | Internal chunks группируют целые top-level AST nodes; layouts лишь ссылаются на диапазоны chunks. | SOURCE + DERIVED |
-| TECH-008 | IndexedDB через Dexie хранит source Blob, versions, chunks, reader state и preferences; UI не хранит полный corpus. | SOURCE |
-| TECH-009 | Import/replace выполняются staging batches + short atomic commit; abandoned staging очищается безопасно. | SOURCE |
-| TECH-010 | `DB_SCHEMA_VERSION`, `WORKER_PROTOCOL_VERSION` и `PIPELINE_VERSION` независимы; pipeline mismatch перестраивается из source Blob. | SOURCE + DERIVED |
-| TECH-011 | Continuous reader использует bounded window с dynamic measurement; TanStack Virtual принимается только после PoC. | SOURCE |
-| TECH-012 | Persistent source of truth — IndexedDB; URL хранит route/hash; React state — только ephemeral UI/state machines. | SOURCE |
-| TECH-013 | Routes: `/`, `/documents/:documentId`, optional `#heading-id`, `*`; mode/strategy не кодируются в URL. | SOURCE |
-| TECH-014 | UI shell: shadcn/ui React Aria base + Tailwind 4 + semantic CSS variables; rendered Markdown — `.reader-content` CSS. | SOURCE (later design) |
-| TECH-015 | PWA использует `vite-plugin-pwa` `generateSW`, app-shell precache и user-prompt update; documents не хранятся в Cache Storage. | SOURCE |
-| TECH-016 | Resolved package versions фиксирует lockfile; bootstrap проверяет official peer/minimum requirements, не использует случайные prerelease. | DERIVED |
+| TECH-002 | Domain does not depend on React/DOM/Dexie; UI calls use cases/ports; repository is the only IndexedDB boundary. | SOURCE |
+| TECH-003 | Decode/hash/parse/partition/sanitize/highlight run in a Web Worker with versioned typed protocol, progress and cancel. | SOURCE |
+| TECH-004 | Pipeline uses unified + remark parse/GFM -> HAST; heading/source positions and anchors are extracted before serialization. | SOURCE |
+| TECH-005 | Raw HTML is inert; allowlist sanitizer and URL policy run before `SanitizedHtml`; the only injection boundary is `SafeHtmlChunk`. | SOURCE |
+| TECH-006 | Highlight uses lowlight and limited grammars; unknown/error/oversized code receives escaped plain-code fallback. | SOURCE |
+| TECH-007 | Internal chunks group whole top-level AST nodes; layouts only reference chunk ranges. | SOURCE + DERIVED |
+| TECH-008 | IndexedDB via Dexie stores source Blob, versions, chunks, reader state and preferences; UI does not store the full corpus. | SOURCE |
+| TECH-009 | Import/replace use staging batches plus short atomic commit; abandoned staging is cleaned safely. | SOURCE |
+| TECH-010 | `DB_SCHEMA_VERSION`, `WORKER_PROTOCOL_VERSION` and `PIPELINE_VERSION` are independent; pipeline mismatch rebuilds from source Blob. | SOURCE + DERIVED |
+| TECH-011 | Continuous reader uses a bounded window with dynamic measurement; TanStack Virtual is accepted only after PoC. | SOURCE |
+| TECH-012 | Persistent source of truth is IndexedDB; URL stores route/hash; React state is only ephemeral UI/state machines. | SOURCE |
+| TECH-013 | Routes: `/`, `/documents/:documentId`, optional `#heading-id`, `*`; mode/strategy are not encoded in URL. | SOURCE |
+| TECH-014 | UI shell: shadcn/ui React Aria base + Tailwind 4 + semantic CSS variables; rendered Markdown uses `.reader-content` CSS. | SOURCE (later design) |
+| TECH-015 | PWA uses `vite-plugin-pwa` `generateSW`, app-shell precache and user-prompt update; documents are not stored in Cache Storage. | SOURCE |
+| TECH-016 | Resolved package versions are fixed by the lockfile; bootstrap checks official peer/minimum requirements and does not use random prereleases. | DERIVED |
 
 ### UX
 
-| ID | Проверяемое правило | Source |
+| ID | Verifiable rule | Source |
 |---|---|---|
-| UX-001 | `/` — спокойный vertical library list: header CTA, local-storage explanation, stable activity sort, empty/loading/error/storage states. | SOURCE |
-| UX-002 | Reader имеет sticky toolbar, document scroll, max-width prose; TOC persistent только от 1120 px, иначе Sheet. | SOURCE |
-| UX-003 | Import — Dialog desktop и Sheet/full-screen mobile с filename, honest stage/progress, cancel и actionable error. | SOURCE |
-| UX-004 | Duplicate/update/delete используют один управляемый overlay flow, полные action labels и deterministic focus return. | SOURCE |
-| UX-005 | Все core flows работают при `<360`, `360–767`, `768–1119`, `1120–1439`, `>=1440`; 320 px не имеет page overflow. | SOURCE |
-| UX-006 | Restore/apply/offline/update/quota/partial error имеют видимое состояние; recoverable error не ограничивается toast. | SOURCE |
-| UX-007 | Keyboard, skip link, landmarks, focus-visible, overlay focus trap/return, reduced motion и 44×44 touch targets обязательны. | SOURCE |
-| UX-008 | External links явно обозначены и безопасны; code/table имеют локальный overflow; media failure не ломает document flow. | SOURCE |
+| UX-001 | `/` is a calm vertical library list: header CTA, local-storage explanation, stable activity sort, empty/loading/error/storage states. | SOURCE |
+| UX-002 | Reader has sticky toolbar, document scroll and max-width prose; TOC is persistent only from 1120 px, otherwise Sheet. | SOURCE |
+| UX-003 | Import is Dialog on desktop and Sheet/full-screen on mobile, with filename, honest stage/progress, cancel and actionable error. | SOURCE |
+| UX-004 | Duplicate/update/delete use one controlled overlay flow, full action labels and deterministic focus return. | SOURCE |
+| UX-005 | All core flows work at `<360`, `360-767`, `768-1119`, `1120-1439`, `>=1440`; 320 px has no page overflow. | SOURCE |
+| UX-006 | Restore/apply/offline/update/quota/partial errors have visible state; recoverable error is not limited to a toast. | SOURCE |
+| UX-007 | Keyboard, skip link, landmarks, focus-visible, overlay focus trap/return, reduced motion and 44x44 touch targets are mandatory. | SOURCE |
+| UX-008 | External links are clearly marked and safe; code/table have local overflow; media failure does not break document flow. | SOURCE |
 
 ### Non-functional
 
-| ID | Проверяемое правило | Source |
+| ID | Verifiable rule | Source |
 |---|---|---|
-| NFR-001 | File/chunk/DOM/overscan/memory budgets определяются corpus benchmark; release не использует неподтверждённые thresholds. | SOURCE |
-| NFR-002 | Forced cancel/termination/reload никогда не меняет текущую ready version и не оставляет видимую partial document. | SOURCE |
-| NFR-003 | Security corpus не выполняет scripts/events, не создаёт clobbering IDs и не оставляет unsafe URL/attributes. | SOURCE |
-| NFR-004 | Содержимое/diagnostics не отправляются и не логируются; remote image request — явное исключение policy. | SOURCE |
-| NFR-005 | Цель — WCAG 2.2 AA; automated a11y дополняется keyboard, NVDA/VoiceOver, zoom/reflow и physical touch smoke. | SOURCE |
-| NFR-006 | Release тестирует current stable Chromium/Firefox/WebKit и real iPhone Safari; hard CSS floor — Safari 16.4, Chrome 111, Firefox 128. | VERIFIED + DERIVED |
-| NFR-007 | Source Blob позволяет rebuild; quota/eviction объясняются, но MVP честно не обещает backup. | SOURCE |
-| NFR-008 | Offline ready documents остаются читаемы; unavailable remote media и update получают отдельные nonfatal states. | SOURCE |
-| NFR-009 | UI locale — русский; strings отделены от domain codes; размеры/проценты через `Intl`. | SOURCE |
-| NFR-010 | Все phase gates требуют typecheck/lint/tests/build и релевантных E2E/security/performance checks; failed check блокирует completion. | DERIVED |
+| NFR-001 | File/chunk/DOM/overscan/memory budgets are determined by corpus benchmark; release does not use unconfirmed thresholds. | SOURCE |
+| NFR-002 | Forced cancel/termination/reload never changes the current ready version and never leaves a visible partial document. | SOURCE |
+| NFR-003 | Security corpus does not execute scripts/events, create clobbering IDs or leave unsafe URLs/attributes. | SOURCE |
+| NFR-004 | Content/diagnostics are not sent or logged; remote image request is the explicit policy exception. | SOURCE |
+| NFR-005 | Target is WCAG 2.2 AA; automated a11y is supplemented by keyboard, NVDA/VoiceOver, zoom/reflow and physical touch smoke. | SOURCE |
+| NFR-006 | Release tests current stable Chromium/Firefox/WebKit and real iPhone Safari; hard CSS floor is Safari 16.4, Chrome 111, Firefox 128. | VERIFIED + DERIVED |
+| NFR-007 | Source Blob enables rebuild; quota/eviction are explained, but MVP honestly does not promise backup. | SOURCE |
+| NFR-008 | Offline ready documents remain readable; unavailable remote media and update receive separate nonfatal states. | SOURCE |
+| NFR-009 | UI locale is Russian; strings are separated from domain codes; sizes/percentages use `Intl`. | SOURCE |
+| NFR-010 | All phase gates require typecheck/lint/tests/build and relevant E2E/security/performance checks; failed check blocks completion. | DERIVED |
 
-## Найденные конфликты и разрешение
+## Found Conflicts and Resolutions
 
-| ID | Конфликт | Разрешение | Основание |
+| ID | Conflict | Resolution | Basis |
 |---|---|---|---|
-| CON-001 | Product blueprint допускал одну качественную тему; позднее решение пользователя/UI blueprint требует light + dark. | MVP содержит `system/light/dark`. | Последнее явное решение пользователя. |
-| CON-002 | Technical blueprint предлагал CSS Modules + React Aria; design blueprint — shadcn React Aria base + Tailwind 4. | UI shell следует design blueprint; domain/worker/storage boundaries technical blueprint неизменны; `.reader-content` остаётся отдельным CSS. | Позднее UI-решение в своей области ответственности. |
-| CON-003 | Technical blueprint называл React `19.2.x` без patch; React Router 8 сейчас требует совместимый более новый patch и Node 22.22+. | Не пиновать устаревший patch в spec; bootstrap ставит current stable compatible patch и фиксирует lockfile. | Official current compatibility/security. |
-| CON-004 | `whole` звучит как единый документ, но technical blueprint требует bounded DOM. | `whole` — один логический section; internal chunks/virtual window сохраняются. | Safety + product rule «без обрезания». |
-| CON-005 | Product ожидает remote images online; privacy требует контролировать external requests. | HTTPS images разрешены preference `remoteImagesEnabled=true` по умолчанию, с `no-referrer`, lazy load и видимым глобальным выключателем; relative files unsupported. | Сохраняет поведение и делает исключение прозрачным/отключаемым. |
-| CON-006 | Исходные материалы описывали прежде всего длинные технические издания, а последнее решение пользователя определяет продукт как читалку любых Markdown-файлов. | Каноническая сущность — `Document`, route — `/documents/:documentId`, repository — `DocumentRepository`; крупные файлы остаются performance stress case, но не определяют категорию продукта. | Последнее явное решение пользователя; технические ограничения крупных файлов сохраняются. |
+| CON-001 | Product blueprint allowed one high-quality theme; later user/UI blueprint decision requires light + dark. | MVP includes `system/light/dark`. | Latest explicit user decision. |
+| CON-002 | Technical blueprint proposed CSS Modules + React Aria; design blueprint says shadcn React Aria base + Tailwind 4. | UI shell follows design blueprint; domain/worker/storage boundaries from technical blueprint remain unchanged; `.reader-content` remains separate CSS. | Later UI decision in its area of ownership. |
+| CON-003 | Technical blueprint named React `19.2.x` without patch; React Router 8 currently requires a compatible newer patch and Node 22.22+. | Do not pin an obsolete patch in spec; bootstrap installs current stable compatible patch and fixes the lockfile. | Official current compatibility/security. |
+| CON-004 | `whole` can sound like one physical document, but technical blueprint requires bounded DOM. | `whole` is one logical section; internal chunks/virtual window remain. | Safety plus product no-truncation rule. |
+| CON-005 | Product expects remote images online; privacy requires controlling external requests. | HTTPS images are allowed by preference `remoteImagesEnabled=true` by default, with `no-referrer`, lazy load and a visible global off switch; relative files are unsupported. | Preserves behavior while making the exception transparent and disableable. |
+| CON-006 | Source materials mostly described long technical publications, while the latest user decision defines the product as a reader for any Markdown file. | Canonical entity is `Document`, route is `/documents/:documentId`, repository is `DocumentRepository`; large files remain a performance stress case but do not define the product category. | Latest explicit user decision; technical constraints for large files remain. |
 
-## Decision log
+## Decision Log
 
-| ID | Решение | Статус | Причина / trigger пересмотра |
+| ID | Decision | Status | Reason / review trigger |
 |---|---|---|---|
-| DEC-001 | Browser-only static PWA, без application backend. | SOURCE | Пересмотреть только при обязательном sync/guaranteed backup. |
-| DEC-002 | React/Vite/Router Declarative; current compatible stable patches. | SOURCE + VERIFIED | Пересмотреть при repository constraint или failed framework PoC. |
-| DEC-003 | `pnpm` + committed lockfile и target scripts. | ASSUMPTION | Reversible до bootstrap; изменить, если среда/организация требует другое. |
-| DEC-004 | Clean domain + ports/adapters; UI framework не проникает в domain. | SOURCE | Пересматривать только через ADR. |
-| DEC-005 | Web Worker pipeline, staged Dexie commit и raw Blob recovery. | SOURCE | Streaming/native shell может изменить boundary после measured limit. |
-| DEC-006 | AST chunks между top-level nodes; no full AST/HTML persistence. | SOURCE | Search/annotations добавляют отдельные records, не отменяя source Blob. |
-| DEC-007 | Strict sanitizer + branded HTML boundary + CSP. | SOURCE | Whitelist raw HTML требует отдельного security review/ADR. |
-| DEC-008 | TanStack Virtual — candidate gated PoC; fallback — bounded manual window/sections. | SOURCE | Решение финализирует P00-T04. |
-| DEC-009 | Semantic anchor, а не pixel offset. | SOURCE | Mapping algorithm калибруется P00-T05. |
-| DEC-010 | IndexedDB — persistent source of truth; no global store. | SOURCE | Sync/collaboration может потребовать новый state layer. |
-| DEC-011 | shadcn React Aria base + Tailwind 4; open-code primitives reviewed locally. | SOURCE (latest) | Failed component/focus PoC допускает local direct React Aria fallback. |
-| DEC-012 | Light/dark/system global preference; no per-document theme. | SOURCE | Per-document personalization post-MVP. |
-| DEC-013 | Import success остаётся в library с CTA открыть. | ASSUMPTION | Изменить после usability evidence, не затрагивает data model. |
-| DEC-014 | Library list, не cover grid; sort by activity + stable documentId. | SOURCE/DERIVED | Covers/large library могут изменить post-MVP. |
-| DEC-015 | Document/window scroll; TOC persistent only `>=1120px`. | SOURCE | Virtualization PoC может доказать необходимость другого scroll root. |
-| DEC-016 | Remote HTTPS images default on, disableable; no runtime caching. | DERIVED | Privacy testing может изменить default до release. |
+| DEC-001 | Browser-only static PWA, without application backend. | SOURCE | Review only if mandatory sync/guaranteed backup appears. |
+| DEC-002 | React/Vite/Router Declarative; current compatible stable patches. | SOURCE + VERIFIED | Review on repository constraint or failed framework PoC. |
+| DEC-003 | `pnpm` plus committed lockfile and target scripts. | ASSUMPTION | Reversible before bootstrap; change if environment/organization requires another tool. |
+| DEC-004 | Clean domain plus ports/adapters; UI framework does not enter domain. | SOURCE | Review only through ADR. |
+| DEC-005 | Web Worker pipeline, staged Dexie commit and raw Blob recovery. | SOURCE | Streaming/native shell may change boundary after measured limit. |
+| DEC-006 | AST chunks between top-level nodes; no full AST/HTML persistence. | SOURCE | Search/annotations add separate records and do not cancel source Blob. |
+| DEC-007 | Strict sanitizer plus branded HTML boundary plus CSP. | SOURCE | Whitelisted raw HTML requires a separate security review/ADR. |
+| DEC-008 | TanStack Virtual is candidate gated by PoC; fallback is bounded manual window/sections. | SOURCE | P00-T04 finalizes the decision. |
+| DEC-009 | Semantic anchor, not pixel offset. | SOURCE | Mapping algorithm is calibrated in P00-T05. |
+| DEC-010 | IndexedDB is persistent source of truth; no global store. | SOURCE | Sync/collaboration may require a new state layer. |
+| DEC-011 | shadcn React Aria base + Tailwind 4; open-code primitives reviewed locally. | SOURCE (latest) | Failed component/focus PoC may allow local direct React Aria fallback. |
+| DEC-012 | Light/dark/system global preference; no per-document theme. | SOURCE | Per-document personalization is post-MVP. |
+| DEC-013 | Import success remains in library with CTA to open. | ASSUMPTION | Change after usability evidence; does not affect data model. |
+| DEC-014 | Library list, not cover grid; sort by activity plus stable documentId. | SOURCE/DERIVED | Covers/large library may change post-MVP. |
+| DEC-015 | Document/window scroll; TOC persistent only at `>=1120px`. | SOURCE | Virtualization PoC may prove a different scroll root is necessary. |
+| DEC-016 | Remote HTTPS images default on, disableable; no runtime caching. | DERIVED | Privacy testing may change default before release. |
 | DEC-017 | `generateSW` prompt update; never silent reload during active import. | SOURCE | Complex runtime cache/background work may require `injectManifest`. |
-| DEC-018 | UI Russian, string catalog boundary from first UI task. | SOURCE | Добавление locale не меняет domain errors. |
-| DEC-019 | Release target — production-oriented MVP after mandatory PoC gates. | ASSUMPTION | Пользователь может снизить scope до prototype; текущие specs остаются верхней границей. |
-| DEC-020 | Каноническая терминология: продукт `Markdown Reader`, сущности `Document`/`DocumentVersion`, идентификатор `documentId`, route `/documents/:documentId`. | SOURCE (latest) | Изменять только вместе с data schema, routes, repository contracts, UX copy и migration decision. |
+| DEC-018 | Russian UI, string catalog boundary from the first UI task. | SOURCE | Adding locale support does not change domain errors. |
+| DEC-019 | Release target is a production-oriented MVP after mandatory PoC gates. | ASSUMPTION | User may lower scope to prototype; current specs remain the upper boundary. |
+| DEC-020 | Canonical terminology: product `Markdown Reader`, entities `Document`/`DocumentVersion`, identifier `documentId`, route `/documents/:documentId`. | SOURCE (latest) | Change only together with data schema, routes, repository contracts, UX copy and migration decision. |
+| DEC-021 | `AGENTS.md` and every file under `codex-spec/` are English-only execution documents; exact Russian UI copy belongs in source catalogs or tests when needed. | SOURCE (latest explicit) | Review only if project documentation governance changes. |
 
-## Assumptions register
+## Assumptions Register
 
-| ID | Предположение | Риск | Обратимая точка |
+| ID | Assumption | Risk | Reversible point |
 |---|---|---|---|
-| ASM-001 | Нужен production-oriented MVP, хотя поле глубины во входном сообщении не заполнено. | Больше hardening tasks. | До P05; отдельные phases можно остановить после walking skeleton. |
-| ASM-002 | После import пользователь остаётся в library. | Может ожидать auto-open. | Один navigation policy в ImportFlow. |
-| ASM-003 | `pnpm` приемлем. | Локальная среда может использовать npm. | P00-T01 до commit lockfile. |
-| ASM-004 | Remote HTTPS images включены по умолчанию, но прозрачно отключаемы. | Privacy expectation. | Preference default до release migration. |
-| ASM-005 | Название `Markdown Reader` принято как каноническое рабочее имя; neutral blue accent остаётся рабочим визуальным допущением. | Поздняя смена brand accent. | Semantic brand tokens/strings. |
-| ASM-006 | Исходный файл сохраняется пользователем вне приложения. | Eviction может привести к потере документа. | Storage copy + backup NEXT; нельзя обещать сохранность. |
+| ASM-001 | A production-oriented MVP is needed, although the depth field in the source request was not filled. | More hardening tasks. | Before P05; individual phases can stop after walking skeleton. |
+| ASM-002 | After import, the user remains in library. | User may expect auto-open. | One navigation policy in ImportFlow. |
+| ASM-003 | `pnpm` is acceptable. | Local environment may use npm. | P00-T01 before committed lockfile. |
+| ASM-004 | Remote HTTPS images are enabled by default but transparently disableable. | Privacy expectation. | Preference default before release migration. |
+| ASM-005 | `Markdown Reader` is accepted as the canonical working name; neutral blue accent remains the working visual assumption. | Late brand accent change. | Semantic brand tokens/strings. |
+| ASM-006 | User keeps the source file outside the app. | Eviction may lose the document. | Storage copy plus backup NEXT; durability cannot be promised. |
 
-## Open questions
+## Open Questions
 
-| ID | Вопрос | Блокирует | Временное решение |
+| ID | Question | Blocks | Temporary answer |
 |---|---|---|---|
-| OPEN-001 | Финальный brand accent. | Не блокирует MVP architecture. | Semantic neutral-blue accent (`ASM-005`). |
+| OPEN-001 | Final brand accent. | Does not block MVP architecture. | Semantic neutral-blue accent (`ASM-005`). |
 
-Блокирующих пользовательских open questions нет. Численные thresholds являются обязательными результатами PoC, а не вопросами, которые можно честно решить предпочтением.
+There are no blocking user open questions. Numeric thresholds are mandatory PoC outputs, not questions that can be honestly settled by preference.
 
-## Deferred decisions
+## Deferred Decisions
 
-| ID | Решение отложено | Вернуться когда |
+| ID | Deferred decision | Return when |
 |---|---|---|
-| DFR-001 | Максимальный file size, node/chunk cost, DOM window, overscan и anchor tolerance. | После P00-T02/P00-T04/P00-T05 на зафиксированном corpus/device matrix. |
-| DFR-002 | Финальный список highlight grammars и auto-detect confidence. | После corpus pipeline benchmark; до P02-T01. |
-| DFR-003 | Backup/export format. | После MVP либо раньше, если eviction делает release неприемлемым. |
-| DFR-004 | Full-text search index/schema. | После стабильных block anchors и pipeline versioning. |
-| DFR-005 | Typography user controls. | После visual QA двух базовых тем. |
-| DFR-006 | Cross-tab coordination guarantees. | Когда E2E докажет реальный конфликт; MVP лишь не должен повреждать данные. |
+| DFR-001 | Maximum file size, node/chunk cost, DOM window, overscan and anchor tolerance. | After P00-T02/P00-T04/P00-T05 on a fixed corpus/device matrix. |
+| DFR-002 | Final highlight grammar list and auto-detect confidence. | After corpus pipeline benchmark; before P02-T01. |
+| DFR-003 | Backup/export format. | After MVP or earlier if eviction makes release unacceptable. |
+| DFR-004 | Full-text search index/schema. | After stable block anchors and pipeline versioning. |
+| DFR-005 | Typography user controls. | After visual QA of both base themes. |
+| DFR-006 | Cross-tab coordination guarantees. | When E2E proves a real conflict; MVP only must avoid data damage. |
 
-### Evidence updates
+### Evidence Updates
 
 | ID | Update | Status |
 |---|---|---|
-| DFR-001 | P00-T02 добавил `src/domain/content/pipeline-limits.ts` и `docs/benchmarks/pipeline-spike.md`: proposal для `maxFileBytes=1_250_000`, chunk cost, oversized-node/code fallback и batch shape подтверждён deterministic corpus/security/bench tests. | Частично закрыто только для content pipeline. DOM window, overscan, browser memory и anchor tolerance остаются за P00-T04/P00-T05/P00-T06. |
-| DFR-002 | P00-T02 предлагает expanded explicit lowlight set: `bash`, `c`, `cpp`, `csharp`, `css`, `diff`, `go`, `graphql`, `ini`, `java`, `javascript`, `json`, `kotlin`, `less`, `lua`, `makefile`, `markdown`, `objectivec`, `perl`, `php`, `plaintext`, `python`, `r`, `ruby`, `rust`, `scss`, `shell`, `sql`, `swift`, `typescript`, `wasm`, `xml`, `yaml`; aliases documented in spike report. Auto-detect остаётся gated by size/confidence и не должен подсвечивать low/medium-confidence unlabeled code. | Proposal до production rerun в P02-T01. |
-| TECH-008/009/010, NFR-002/007 | P00-T03 добавил Dexie `4.4.5` storage atomicity prototype, fake-IDB integration tests, Chromium IndexedDB Blob confirmation and `docs/benchmarks/storage-atomicity-spike.md`. Staging/append/commit/abort/cleanup/migration/current-version preconditions доказаны для spike scope. | Закрывает storage atomicity spike для P01-T02. `fake-indexeddb` Blob-shape divergence documented; source Blob recovery still requires browser smoke when production schema changes. |
+| DFR-001 | P00-T02 added `src/domain/content/pipeline-limits.ts` and `docs/benchmarks/pipeline-spike.md`: proposal for `maxFileBytes=1_250_000`, chunk cost, oversized-node/code fallback and batch shape confirmed by deterministic corpus/security/bench tests. | Partially closed for content pipeline only. DOM window, overscan, browser memory and anchor tolerance remain for P00-T04/P00-T05/P00-T06. |
+| DFR-002 | P00-T02 proposes expanded explicit lowlight set: `bash`, `c`, `cpp`, `csharp`, `css`, `diff`, `go`, `graphql`, `ini`, `java`, `javascript`, `json`, `kotlin`, `less`, `lua`, `makefile`, `markdown`, `objectivec`, `perl`, `php`, `plaintext`, `python`, `r`, `ruby`, `rust`, `scss`, `shell`, `sql`, `swift`, `typescript`, `wasm`, `xml`, `yaml`; aliases documented in spike report. Auto-detect remains gated by size/confidence and must not highlight low/medium-confidence unlabeled code. | Proposal until production rerun in P02-T01. |
+| TECH-008/009/010, NFR-002/007 | P00-T03 added Dexie `4.4.5` storage atomicity prototype, fake-IDB integration tests, Chromium IndexedDB Blob confirmation and `docs/benchmarks/storage-atomicity-spike.md`. Staging/append/commit/abort/cleanup/migration/current-version preconditions are proven for spike scope. | Closes storage atomicity spike for P01-T02. `fake-indexeddb` Blob-shape divergence documented; source Blob recovery still requires browser smoke when production schema changes. |
 
-## Трассировка
+## Traceability
 
-`AC` означает acceptance criteria соответствующего task; точные проверки перечислены в task и `codex-spec/testing-and-quality.md`.
+`AC` means acceptance criteria of the corresponding task; exact checks are listed in the task and `codex-spec/testing-and-quality.md`.
 
-| Requirements | Каноническая спецификация | Tasks | Acceptance / test |
+| Requirements | Canonical specification | Tasks | Acceptance / test |
 |---|---|---|---|
 | PRD-001, TECH-001, TECH-013, TECH-016, DEC-020 | `codex-spec/project-source-of-truth.md`, `codex-spec/architecture/system-architecture.md`, `codex-spec/architecture/data-and-state.md` | P00-T01, P01-T01, P01-T02 | Build SPA; canonical Document contracts/schema; route smoke; no backend runtime |
 | PRD-002, TECH-003, TECH-009 | F01, `codex-spec/architecture/system-architecture.md`, `codex-spec/architecture/data-and-state.md` | P01-T03, P02-T01, P02-T02 | Import/cancel/forced failure integration + E2E |

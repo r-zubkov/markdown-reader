@@ -46,7 +46,7 @@ Near-quota threshold must be measured/centralized; estimate is advisory. Request
 
 - IndexedDB `AppPreferences` source; minimal localStorage theme mirror only for pre-paint.
 - Default theme `system`; change instant and triggers anchor-preserving remeasure.
-- `remoteImagesEnabled=true` initial assumption, exposed in global menu with clear text «Загружать изображения из интернета».
+- `remoteImagesEnabled=true` initial assumption, exposed in global menu with clear remote-images-from-internet text.
 - When false/offline, sanitized `<img>` content is represented/handled as nonrequesting placeholder; toggling on may retry currently visible HTTPS images. Relative local images always unsupported.
 - No third-party font/analytics/network request. CSP and actual requests are audited.
 

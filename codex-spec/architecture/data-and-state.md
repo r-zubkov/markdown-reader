@@ -1,13 +1,13 @@
 # Data and state
 
-## Общие соглашения
+## General Conventions
 
-- IDs: UUID strings из `crypto.randomUUID()`; не auto-increment.
-- Время: integer UTC epoch milliseconds (`number`), UI форматирует через `Intl`.
-- Ratios: finite `number` в `[0,1]`; byte/source offsets — non-negative safe integers.
-- Enum values хранятся lowercase и валидируются при чтении.
-- `DB_SCHEMA_VERSION`, `PIPELINE_VERSION`, `WORKER_PROTOCOL_VERSION` — отдельные constants.
-- Persistent records проходят runtime schema validation. Invalid record не castится в domain type.
+- IDs: UUID strings from `crypto.randomUUID()`; not auto-increment.
+- Time: integer UTC epoch milliseconds (`number`), formatted by UI through `Intl`.
+- Ratios: finite `number` in `[0,1]`; byte/source offsets are non-negative safe integers.
+- Enum values are stored lowercase and validated on read.
+- `DB_SCHEMA_VERSION`, `PIPELINE_VERSION`, `WORKER_PROTOCOL_VERSION` are separate constants.
+- Persistent records pass runtime schema validation. Invalid record is not cast to a domain type.
 
 ## Domain contracts
 
@@ -78,7 +78,7 @@ interface SectionRef {
 }
 ```
 
-`whole` имеет один `SectionRef`, но его range читается bounded windows. `safeForSelection=false` запрещает user-visible selection до фиксации/прохождения budget.
+`whole` has one `SectionRef`, but its range is read through bounded windows. `safeForSelection=false` forbids user-visible selection until the budget is fixed/passed.
 
 ```ts
 type SanitizedHtml = string & { readonly __brand: 'SanitizedHtml' };
@@ -134,9 +134,9 @@ interface AppPreferences {
 }
 ```
 
-Repository возвращает `SanitizedHtml` только после runtime validation record + equality `chunk.pipelineVersion === current PIPELINE_VERSION` + принадлежности current ready version. Единственная factory приватна infrastructure boundary.
+Repository returns `SanitizedHtml` only after runtime record validation plus equality `chunk.pipelineVersion === current PIPELINE_VERSION` plus ownership by the current ready version. The only factory is private to the infrastructure boundary.
 
-## Связи
+## Relationships
 
 ```mermaid
 erDiagram
@@ -146,13 +146,13 @@ erDiagram
     DOCUMENT_VERSION }o--|| DOCUMENT : current
 ```
 
-Document имеет ровно одну `currentVersionId`. Staging versions могут существовать, но не считаются current/visible. После replace старая ready version временно может существовать до cleanup.
+Document has exactly one `currentVersionId`. Staging versions may exist, but they are not current/visible. After replace, the old ready version may temporarily exist until cleanup.
 
 ## IndexedDB schema
 
-Целевые Dexie stores; точный syntax фиксирует P01-T02 после spike:
+Target Dexie stores; exact syntax is fixed by P01-T02 after the spike:
 
-| Store | Primary key | Required indexes | Назначение |
+| Store | Primary key | Required indexes | Purpose |
 |---|---|---|---|
 | `documents` | `id` | `normalizedTitle`, `normalizedFileName`, `lastOpenedAt`, `updatedAt` | Library metadata/similarity candidates |
 | `documentVersions` | `id` | `documentId`, `state`, `contentHash`, `[documentId+state]`, `jobId`, `importedAt` | Raw source, published/staging versions |
@@ -190,39 +190,39 @@ P00-T03 confirmed the target stores above with Dexie short transactions and reus
 | Online/update/storage health | Session/platform | Platform adapters | Browser/SW/storage events |
 | Library scroll/focus return | Session | Route-level UI state/browser | Navigation/focus policy; not durable across browser restart |
 
-Нельзя копировать current Document/ReaderState в глобальный React store. Narrow live queries возвращают metadata; transient optimistic state допускается только пока mutation pending и не изображает irreversible success.
+Do not copy current Document/ReaderState into a global React store. Narrow live queries return metadata; transient optimistic state is allowed only while mutation is pending and must not depict irreversible success.
 
 ## Theme bootstrap mirror
 
-Чтобы не было flash incorrect theme, minimal `theme` string может зеркалироваться в `localStorage` только как pre-paint hint. IndexedDB `preferences` остаётся source of truth; после startup:
+To prevent a wrong-theme flash, the minimal `theme` string may be mirrored into `localStorage` only as a pre-paint hint. IndexedDB `preferences` remains the source of truth; after startup:
 
-1. небольшой self-hosted bootstrap script, загруженный до app entry, применяет `system/light/dark` hint до React paint; допустимая альтернатива — build-generated fixed CSP hash для inline script, но не `unsafe-inline`;
-2. preferences adapter читает IndexedDB;
-3. при расхождении применяет IndexedDB и обновляет mirror;
-4. изменение preference атомарно пишет IndexedDB, затем mirror.
+1. a small self-hosted bootstrap script loaded before the app entry applies the `system/light/dark` hint before React paint; an acceptable alternative is a build-generated fixed CSP hash for an inline script, but not `unsafe-inline`;
+2. preferences adapter reads IndexedDB;
+3. if values differ, IndexedDB is applied and the mirror is updated;
+4. preference change atomically writes IndexedDB, then the mirror.
 
-Никакие document/progress data в `localStorage` не хранятся.
+No document/progress data is stored in `localStorage`.
 
-## Normalization и идентичность
+## Normalization and Identity
 
-- `fileName`: basename, Unicode preserved; path не доступен/не хранится.
+- `fileName`: basename, Unicode preserved; path is not available/stored.
 - `normalizedFileName`: Unicode NFKC, trim, collapse whitespace, locale-independent lowercase, strip final `.md` for candidate matching.
-- `title`: plain text первого H1 после inline Markdown normalization; иначе filename без extension; nonempty bounded display string.
-- `normalizedTitle`: та же NFKC/whitespace/lowercase policy.
-- Similarity: exact match normalized filename or title. Несколько candidates не выбираются автоматически; UI предлагает выбрать target или add separately.
-- Exact identity: SHA-256 raw bytes, не decoded text. Hash duplicate допускается даже при другом filename.
+- `title`: plain text of the first H1 after inline Markdown normalization; otherwise filename without extension; nonempty bounded display string.
+- `normalizedTitle`: same NFKC/whitespace/lowercase policy.
+- Similarity: exact match normalized filename or title. Multiple candidates are not selected automatically; UI offers target selection or add separately.
+- Exact identity: SHA-256 raw bytes, not decoded text. Hash duplicate is allowed even with a different filename.
 
-## Heading, chunk и anchor IDs
+## Heading, Chunk and Anchor IDs
 
-- Heading slug строится из normalized visible text; ID format `mdr-h-{slug-or-heading}-{occurrence}`. Occurrence считается в document order.
-- `pathKey` включает ancestry levels/text occurrence, например `1:introduction[1]/2:setup[2]`; не содержит raw HTML.
-- Block ID стабилен внутри версии: hash/ordinal от normalized block type + source range; cross-version mapping не полагается только на него.
-- Chunk ordinal contiguous `0..chunkCount-1`; commit отвергает gaps/duplicates/overlap/out-of-order source ranges.
-- Layout ranges обязаны быть valid, ordered, non-overlapping and cover chunks according to strategy; property tests доказывают coverage.
+- Heading slug is built from normalized visible text; ID format is `mdr-h-{slug-or-heading}-{occurrence}`. Occurrence is counted in document order.
+- `pathKey` includes ancestry levels/text occurrence, for example `1:introduction[1]/2:setup[2]`; it contains no raw HTML.
+- Block ID is stable within a version: hash/ordinal from normalized block type plus source range; cross-version mapping does not rely on it alone.
+- Chunk ordinal is contiguous `0..chunkCount-1`; commit rejects gaps/duplicates/overlap/out-of-order source ranges.
+- Layout ranges must be valid, ordered, non-overlapping and cover chunks according to strategy; property tests prove coverage.
 
-## Import, serialization и validation
+## Import, Serialization and Validation
 
-1. Validate one `.md` (case-insensitive extension); MIME — hint, не authority.
+1. Validate one `.md` (case-insensitive extension); MIME is a hint, not authority.
 2. Enforce measured byte limit before full read.
 3. Fatal UTF-8 `TextDecoder`; invalid input fails without partial document.
 4. Hash raw bytes; parse decoded text once.
@@ -286,4 +286,4 @@ One transaction deletes ReaderState, all chunks for all document versions, versi
 
 - Import supports only one source `.md` and replacement/separate decisions.
 - Library export/restore is deferred; no hidden unstable format is exposed.
-- Delete one document is supported. «Clear all data» is not an MVP UI action; diagnostics may explain browser site-data controls but never invoke them as first recovery.
+- Delete one document is supported. Clear-all-data is not an MVP UI action; diagnostics may explain browser site-data controls but never invoke them as first recovery.

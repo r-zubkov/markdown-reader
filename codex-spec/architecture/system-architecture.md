@@ -4,42 +4,42 @@
 
 Client-only modular SPA with ports/adapters and a local-first persistence model. React owns composition and interaction; pure TypeScript domain owns parsing policies, partitioning, duplicate/update decisions and position mapping; infrastructure owns browser APIs. Heavy untrusted-content work runs in a dedicated worker.
 
-Это не formal Clean Architecture ceremony: границы существуют только там, где отделяют React, storage, worker и недоверенный content pipeline.
+This is not formal Clean Architecture ceremony: boundaries exist only where they separate React, storage, worker and the untrusted content pipeline.
 
 ## Runtime context
 
 ```mermaid
 flowchart TD
-    U["Пользователь"] --> UI["React SPA"]
+    U["User"] --> UI["React SPA"]
     UI --> W["Import Worker"]
     UI --> DB["IndexedDB / Dexie"]
     UI --> P["Browser platform"]
     P --> N["HTTPS images · optional"]
 ```
 
-- Static host раздаёт hashed assets, SPA fallback и security headers по стабильному HTTPS origin.
-- Service worker precache содержит только app shell/build assets. Document bytes и derived content находятся в IndexedDB.
-- Сеть не нужна для import/read. Исключение — разрешённая загрузка HTTPS remote image; она не кэшируется как document asset.
-- File picker/DropZone передают browser `File`; никаких upload requests нет.
+- Static host serves hashed assets, SPA fallback and security headers from a stable HTTPS origin.
+- Service worker precache contains only app shell/build assets. Document bytes and derived content live in IndexedDB.
+- Network is not needed for import/read. The only exception is permitted HTTPS remote-image loading; it is not cached as a document asset.
+- File picker/DropZone pass a browser `File`; there are no upload requests.
 
-## Модули и ответственность
+## Modules and Responsibilities
 
-| Слой/модуль | Ответственность | Не имеет права |
+| Layer/module | Responsibility | Must not |
 |---|---|---|
-| `app` | Composition root, providers, router, route boundaries, global statuses | Парсить Markdown, запрашивать chunks напрямую из Dexie tables |
-| `features/library` | Library query/use cases, import/delete entry points, list UI | Владеть DB schema, вычислять duplicate policy |
-| `features/import` | Import UI reducer/controller, worker/repository orchestration adapter | Санитизировать HTML в UI, публиковать staging records напрямую |
-| `features/reader` | Reader shell, TOC/settings, virtualizer adapter, location controller | Хранить whole document/chunk corpus, менять pipeline rules |
-| `domain/documents` | Entities, normalized identity, layouts, duplicate/update policy | Импортировать React/DOM/Dexie |
-| `domain/content` | AST block model, partition invariants, heading IDs, URL/content policy contracts | Использовать browser DOM as sanitizer |
-| `domain/reading` | Semantic anchor, mapping confidence, progress calculation | Хранить pixel offset как canonical location |
-| `application` | Use-case ports: import, replace, delete, open, reprocess | Зависеть от конкретных UI primitives |
-| `infrastructure/db` | Dexie schema, repositories, migrations, atomic commit/cleanup | Возвращать unvalidated stale HTML as safe |
-| `infrastructure/platform` | storage health, online status, theme bootstrap, URL/hash, PWA update | Содержать product business rules |
-| `workers` | Decode, hash, parse, partition, sanitize, highlight, batching | Мутировать UI/React; использовать unversioned messages |
-| `ui/primitives` | Installed/adapted shadcn React Aria components | Содержать feature state machines |
+| `app` | Composition root, providers, router, route boundaries, global statuses | Parse Markdown or request chunks directly from Dexie tables |
+| `features/library` | Library query/use cases, import/delete entry points, list UI | Own DB schema or compute duplicate policy |
+| `features/import` | Import UI reducer/controller, worker/repository orchestration adapter | Sanitize HTML in UI or publish staging records directly |
+| `features/reader` | Reader shell, TOC/settings, virtualizer adapter, location controller | Store whole document/chunk corpus or change pipeline rules |
+| `domain/documents` | Entities, normalized identity, layouts, duplicate/update policy | Import React/DOM/Dexie |
+| `domain/content` | AST block model, partition invariants, heading IDs, URL/content policy contracts | Use browser DOM as sanitizer |
+| `domain/reading` | Semantic anchor, mapping confidence, progress calculation | Store pixel offset as canonical location |
+| `application` | Use-case ports: import, replace, delete, open, reprocess | Depend on concrete UI primitives |
+| `infrastructure/db` | Dexie schema, repositories, migrations, atomic commit/cleanup | Return unvalidated stale HTML as safe |
+| `infrastructure/platform` | storage health, online status, theme bootstrap, URL/hash, PWA update | Contain product business rules |
+| `workers` | Decode, hash, parse, partition, sanitize, highlight, batching | Mutate UI/React or use unversioned messages |
+| `ui/primitives` | Installed/adapted shadcn React Aria components | Contain feature state machines |
 
-## Допустимые зависимости
+## Allowed Dependencies
 
 ```mermaid
 flowchart TD
@@ -50,18 +50,18 @@ flowchart TD
     E --> D
 ```
 
-`domain` — нижний независимый слой. Infrastructure реализует ports и внедряется composition root. Feature может использовать domain types, но side effects проходят application/repository ports. Линтер/import-boundary tests должны запретить обратные зависимости.
+`domain` is the lower independent layer. Infrastructure implements ports and is injected by the composition root. A feature may use domain types, but side effects go through application/repository ports. Lint/import-boundary tests must forbid reverse dependencies.
 
-## Routes и entry points
+## Routes and Entry Points
 
 | Route | Entry | Exit/behavior |
 |---|---|---|
-| `/` | Startup, logo, Back from reader | Library; import/delete/replace overlays не создают самостоятельный route |
-| `/documents/:documentId` | Open/continue/success/duplicate | Restore saved anchor; missing local document → recovery state |
-| `/documents/:documentId#heading-id` | Explicit TOC/deep link | Hash overrides saved anchor once; invalid heading → nearest ancestor/start notice |
+| `/` | Startup, logo, Back from reader | Library; import/delete/replace overlays do not create a standalone route |
+| `/documents/:documentId` | Open/continue/success/duplicate | Restore saved anchor; missing local document -> recovery state |
+| `/documents/:documentId#heading-id` | Explicit TOC/deep link | Hash overrides saved anchor once; invalid heading -> nearest ancestor/start notice |
 | `*` | Unknown URL | Route error state + link to `/` |
 
-Mode/strategy — per-document preferences в IndexedDB, не query params. Passive scroll не пишет browser history.
+Mode/strategy are per-document preferences in IndexedDB, not query params. Passive scroll does not write browser history.
 
 ## Import data flow
 
@@ -125,9 +125,9 @@ Actual contracts live in a shared protocol module that imports no worker/DOM glo
 
 ## Async processes and concurrency
 
-- Одновременно один active import per tab in MVP; additional attempt focuses current flow. This avoids unmeasured memory amplification.
+- MVP allows one active import per tab at a time; an additional attempt focuses the current flow. This avoids unmeasured memory amplification.
 - IndexedDB transactions serialize publication. `currentVersionId` is changed only when all expected batches exist and metadata counts/ranges validate.
-- Multiple tabs may observe Dexie writes, but MVP не обещает collaborative coordination. Commit uses current-version precondition; stale replacement aborts with recoverable conflict.
+- Multiple tabs may observe Dexie writes, but MVP does not promise collaborative coordination. Commit uses current-version precondition; stale replacement aborts with recoverable conflict.
 - Pipeline rebuild after `PIPELINE_VERSION` mismatch creates a new staging derived version from same source Blob and uses the same atomic switch.
 - Service-worker update may be prepared anytime, but reload/apply is disabled while import/finalization is active.
 
@@ -152,7 +152,7 @@ Route error boundary catches unexpected React failures only. Expected domain err
 - Heading/footnote IDs are application-generated with a fixed prefix, slug + occurrence; user-provided `id/name` is discarded to prevent clobbering.
 - Links: allow `#`, `http`, `https`, `mailto`; external HTTP(S) gets `_blank`, `rel="noopener noreferrer"`. Block `javascript`, `data`, `file`, `blob` and unknown protocols.
 - Images: allow `https` when preference on and safe raster `data:image/{png,jpeg,gif,webp,avif}` under measured decoded limit; block SVG data, HTTP, file/blob and relative paths. Use `referrerpolicy="no-referrer"`, lazy/async decode.
-- CSP target: `default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'`. Deployment must decide whether Tailwind/generated styles require a nonce/hash change; `unsafe-eval` запрещён.
+- CSP target: `default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'`. Deployment must decide whether Tailwind/generated styles require a nonce/hash change; `unsafe-eval` is forbidden.
 - Diagnostics include error codes/counts/sizes, never document text or full URLs containing secrets.
 
 ## Proposed source tree
@@ -186,25 +186,25 @@ src/
 e2e/
 ```
 
-Не создавать placeholder folders до задачи, которая вводит их ответственность.
+Do not create placeholder folders before the task that introduces their responsibility.
 
-## Запрещённые сокращения
+## Forbidden Shortcuts
 
-- Parse/sanitize/highlight в React render/main thread.
-- Один giant HTML string, persisted full AST или `chunks[]` всего документа в Context.
-- Direct Dexie imports из screen components.
-- `dangerouslySetInnerHTML` вне `SafeHtmlChunk` или brand через обычный cast.
-- Публикация Document до complete batch validation.
-- Pixel scrollTop как source of truth.
-- Strategy `whole`, которая монтирует весь документ.
-- Второй sanitizer «на всякий случай», permissive raw HTML или dynamic execution.
-- Silent data deletion при migration/quota/corruption.
-- Auto reload service worker во время active task.
+- Parse/sanitize/highlight in React render/main thread.
+- One giant HTML string, persisted full AST or whole-document `chunks[]` in Context.
+- Direct Dexie imports from screen components.
+- `dangerouslySetInnerHTML` outside `SafeHtmlChunk` or branding through a plain cast.
+- Publishing Document before complete batch validation.
+- Pixel scrollTop as source of truth.
+- Strategy `whole` that mounts the whole document.
+- Second sanitizer "just in case", permissive raw HTML or dynamic execution.
+- Silent data deletion during migration/quota/corruption.
+- Auto-reload service worker during active task.
 
-## Проверенные нестабильные детали
+## Verified Unstable Details
 
-- [React Router 8](https://reactrouter.com/) имеет modern baseline Node 22+, React 19+; bootstrap проверяет текущие точные minimum patches.
-- [React Router modes](https://reactrouter.com/start/modes) подтверждают Declarative Mode как наименее навязывающий architecture вариант.
-- [shadcn React Aria base](https://ui.shadcn.com/docs/changelog/2026-07-react-aria) и `--base aria` доступны, но component/focus PoC обязателен.
-- [TanStack React Virtual](https://tanstack.com/virtual/latest/docs/framework/react/react-virtual) документирует `useFlushSync` и `directDomUpdates`; оба являются measured options, не defaults спецификации.
-- [Vite PWA React integration](https://vite-pwa-org.netlify.app/frameworks/react) поддерживает prompt update; callback state должен использовать stable references.
+- [React Router 8](https://reactrouter.com/) has a modern baseline of Node 22+ and React 19+; bootstrap verifies the current exact minimum patches.
+- [React Router modes](https://reactrouter.com/start/modes) confirm Declarative Mode as the least architecture-imposing option.
+- [shadcn React Aria base](https://ui.shadcn.com/docs/changelog/2026-07-react-aria) and `--base aria` are available, but component/focus PoC is mandatory.
+- [TanStack React Virtual](https://tanstack.com/virtual/latest/docs/framework/react/react-virtual) documents `useFlushSync` and `directDomUpdates`; both are measured options, not specification defaults.
+- [Vite PWA React integration](https://vite-pwa-org.netlify.app/frameworks/react) supports prompt update; callback state must use stable references.

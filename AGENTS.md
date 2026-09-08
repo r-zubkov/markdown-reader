@@ -1,101 +1,105 @@
-# Постоянные правила Codex
+# Codex Standing Rules
 
-## Цель
+## Goal
 
-Разрабатывать локальную browser-only читалку Markdown-файлов как безопасный, отзывчивый и доступный production-oriented MVP. Код обязан сохранять весь контент документа, локальность данных и semantic reading position.
+Develop a local browser-only Markdown file reader as a safe, responsive, accessible, production-oriented MVP. The code must preserve all document content, data locality and semantic reading position.
 
-## Перед любой задачей
+## Before Any Task
 
-1. Прочитать этот файл, конкретный task-файл из `codex-spec/tasks/` и его `Read before starting`.
-2. Проверить реальную структуру репозитория, `package.json`, lockfile, текущий git diff и уже завершённые task IDs.
-3. Не повторять выполненную работу и не перезаписывать пользовательские изменения.
-4. Если код и спецификация расходятся существенно, остановиться и описать расхождение; не делать молчаливый выбор.
+1. Read this file, the concrete task file from `codex-spec/tasks/` and its `Read before starting` section.
+2. Inspect the real repository structure, `package.json`, lockfile, current git diff and already completed task IDs.
+3. Do not repeat completed work and do not overwrite user changes.
+4. If code and specification differ substantially, stop and describe the mismatch; do not make a silent choice.
 
-Приоритет: последняя явная инструкция пользователя → безопасность/целостность → `codex-spec/requirements-and-decisions.md` → task → feature spec → architecture/design/data docs → рабочее предположение.
+Priority: latest explicit user instruction -> safety/integrity -> `codex-spec/requirements-and-decisions.md` -> task -> feature spec -> architecture/design/data docs -> working assumption.
 
-Все пути в спецификациях считаются относительно корня репозитория.
+All paths in specifications are relative to the repository root.
 
-## Карта спецификаций
+## Documentation Language
 
-- Навигатор и порядок исполнения: `codex-spec/README.md`.
-- Продукт и границы MVP: `codex-spec/project-source-of-truth.md`.
-- Требования, решения и трассировка: `codex-spec/requirements-and-decisions.md`.
-- Архитектура и данные: `codex-spec/architecture/`.
-- UI-система, экраны и flows: `codex-spec/design/`.
-- Функциональные контракты: `codex-spec/features/`.
-- Атомарные задания: `codex-spec/tasks/`.
-- Порядок этапов: `codex-spec/implementation-roadmap.md`.
-- Качество и финальная приёмка: `codex-spec/testing-and-quality.md` и `codex-spec/final-acceptance-checklist.md`.
+`AGENTS.md` and every file under `codex-spec/` are execution documents and must be written in English only. Do not add non-English prose, headings, prompts, acceptance text or literal UI-label examples to these files. The product UI may still require a Russian locale; express that requirement in English and keep exact Russian UI copy in source string catalogs or tests when exact strings are needed.
 
-Корневой `README.md` предназначен для людей: кратко объясняет продукт, фактический статус и реальные команды запуска. Не превращать его в дубликат спецификаций. Все исполнительные документы, кроме этого файла, должны оставаться внутри `codex-spec/`.
+## Specification Map
 
-## Архитектурные границы
+- Navigator and execution order: `codex-spec/README.md`.
+- Product and MVP boundaries: `codex-spec/project-source-of-truth.md`.
+- Requirements, decisions and traceability: `codex-spec/requirements-and-decisions.md`.
+- Architecture and data: `codex-spec/architecture/`.
+- UI system, screens and flows: `codex-spec/design/`.
+- Functional contracts: `codex-spec/features/`.
+- Atomic tasks: `codex-spec/tasks/`.
+- Phase order: `codex-spec/implementation-roadmap.md`.
+- Quality and final acceptance: `codex-spec/testing-and-quality.md` and `codex-spec/final-acceptance-checklist.md`.
 
-- `domain` — чистый TypeScript; не импортирует React, DOM, Dexie, router или PWA APIs.
-- `infrastructure` реализует repository/platform ports; UI не обращается к IndexedDB или service worker напрямую.
-- `workers` не импортируют React/UI и общаются через versioned discriminated-union protocol.
-- `features/*` оркестрируют use cases и UI; business rules не живут в визуальных компонентах.
-- В React state/Context запрещено хранить полный исходник, AST, все chunks или весь документ. IndexedDB — source of truth для persistent data.
-- `SafeHtmlChunk` — единственная точка `dangerouslySetInnerHTML`. Она принимает только `SanitizedHtml`, выданный repository после проверки `pipelineVersion`.
-- User-visible split strategy не отключает internal chunking. `whole` означает один логический раздел, а не гигантский DOM.
-- Import/replace всегда используют staging + atomic commit. Ошибка не может опубликовать partial document или повредить текущую ready version.
+The root `README.md` is for humans: it briefly explains the product, actual status and real run commands. Do not turn it into a duplicate of the specifications. All execution documents except this file must remain inside `codex-spec/`.
 
-Запрещены незапрошенные backend, auth, sync, telemetry содержимого, SSR/RSC, MDX, raw executable HTML, Redux/Zustand/TanStack Query, custom parser/sanitizer/IndexedDB wrapper и массовый рефакторинг.
+## Architectural Boundaries
 
-## Стек и зависимости
+- `domain` is pure TypeScript; it does not import React, DOM, Dexie, router or PWA APIs.
+- `infrastructure` implements repository/platform ports; UI does not access IndexedDB or service worker directly.
+- `workers` do not import React/UI and communicate through a versioned discriminated-union protocol.
+- `features/*` orchestrate use cases and UI; business rules do not live in visual components.
+- React state/Context must not store the full source, AST, all chunks or the whole document. IndexedDB is the source of truth for persistent data.
+- `SafeHtmlChunk` is the only `dangerouslySetInnerHTML` boundary. It accepts only `SanitizedHtml` returned by repository after `pipelineVersion` validation.
+- User-visible split strategy does not disable internal chunking. `whole` means one logical section, not a giant DOM.
+- Import/replace always use staging plus atomic commit. An error cannot publish a partial document or damage the current ready version.
 
-- React 19.2 с текущим совместимым security patch, TypeScript strict, Vite 8.1, React Router 8 Declarative Mode, Node `>=22.22`.
+Do not add unrequested backend, auth, sync, content telemetry, SSR/RSC, MDX, raw executable HTML, Redux/Zustand/TanStack Query, a custom parser/sanitizer/IndexedDB wrapper or broad refactoring.
+
+## Stack and Dependencies
+
+- React 19.2 with the current compatible security patch, TypeScript strict, Vite 8.1, React Router 8 Declarative Mode, Node `>=22.22`.
 - Dexie 4, unified/remark/rehype pipeline, lowlight, Web Worker, TanStack Virtual v3, `vite-plugin-pwa` `generateSW`.
-- UI: shadcn/ui с React Aria base, Tailwind CSS 4 для shell, CSS custom properties и namespaced `.reader-content` CSS; Lucide React.
-- `pnpm` и lockfile — рабочее предположение, закрепляемое bootstrap task.
-- Новая dependency требует конкретной ответственности, проверки лицензии/совместимости и записи в completion report. Нельзя менять стек из-за личного предпочтения.
-- Использовать стабильные релизы и фиксировать resolved versions lockfile. Не придумывать patch-версии: на bootstrap проверить peer/minimum requirements официальной документации.
+- UI: shadcn/ui with React Aria base, Tailwind CSS 4 for the shell, CSS custom properties and namespaced `.reader-content` CSS; Lucide React.
+- `pnpm` and lockfile are the working assumption fixed by the bootstrap task.
+- A new dependency needs a concrete responsibility, license/compatibility check and completion-report entry. Do not change the stack because of personal preference.
+- Use stable releases and pin resolved versions in the lockfile. Do not invent patch versions: during bootstrap, verify peer/minimum requirements against official documentation.
 
-## TypeScript и контракты
+## TypeScript and Contracts
 
-- `strict` включён; избегать `any`, non-null assertions и unchecked casts на trust boundaries.
-- Внешние данные и persisted records валидируются до использования. Domain errors — discriminated unions с стабильными codes; UI переводит code в русскую microcopy.
-- ID — `crypto.randomUUID()`. Времена — UTC epoch milliseconds. Ratios ограничены `[0,1]`.
-- Derived state вычисляется из канонического source; не создавать второй источник истины для progress, mode или current version.
-- Изменение IndexedDB schema, worker protocol, sanitizer contract или публичного port interface требует обновить соответствующий spec/decision, миграционный тест и совместимость.
-- Изменение Markdown/sanitize/highlight pipeline требует `PIPELINE_VERSION` bump и проверенный rebuild из `sourceBlob`.
+- `strict` is enabled; avoid `any`, non-null assertions and unchecked casts at trust boundaries.
+- External data and persisted records are validated before use. Domain errors are discriminated unions with stable codes; UI maps codes to Russian microcopy.
+- IDs use `crypto.randomUUID()`. Times are UTC epoch milliseconds. Ratios are clamped to `[0,1]`.
+- Derived state is computed from the canonical source; do not create a second source of truth for progress, mode or current version.
+- Changing IndexedDB schema, worker protocol, sanitizer contract or public port interface requires updating the corresponding spec/decision, migration test and compatibility.
+- Changing the Markdown/sanitize/highlight pipeline requires a `PIPELINE_VERSION` bump and verified rebuild from `sourceBlob`.
 
-## React, UI и стили
+## React, UI and Styles
 
-- Pages композируют feature components; reusable primitives находятся в `src/ui/primitives`.
-- Не переустанавливать shadcn component поверх локально изменённой версии без diff review. Не смешивать Radix/Base UI/React Aria implementations без `DEC`.
-- Feature-код использует semantic tokens, не raw hex. Tailwind не должен управлять внутренней разметкой sanitized Markdown.
-- `.reader-content` изолирован namespace/layer; code/table/image не создают page-level horizontal overflow.
-- Light/dark/system, keyboard, focus return, 320 px reflow, reduced motion и 44×44 touch targets обязательны для затронутых UI.
-- Ссылки используются для navigation, buttons — для actions. Не делать интерактивный container с вложенными controls.
-- Все loading/empty/error/offline/disabled states берутся из screen/feature spec; нельзя заменять actionable error одним toast.
+- Pages compose feature components; reusable primitives live in `src/ui/primitives`.
+- Do not reinstall a shadcn component over a locally changed version without diff review. Do not mix Radix/Base UI/React Aria implementations without a `DEC`.
+- Feature code uses semantic tokens, not raw hex. Tailwind must not control the internal markup of sanitized Markdown.
+- `.reader-content` is isolated by namespace/layer; code/table/image must not create page-level horizontal overflow.
+- Light/dark/system, keyboard, focus return, 320 px reflow, reduced motion and 44x44 touch targets are mandatory for affected UI.
+- Links are for navigation; buttons are for actions. Do not create an interactive container with nested controls.
+- All loading/empty/error/offline/disabled states come from the screen/feature spec; do not replace an actionable error with a single toast.
 
-## Безопасность и приватность
+## Security and Privacy
 
-- File, Markdown, raw HTML, URL, language label и persisted bytes недоверенны.
-- Raw HTML не исполняется. Sanitizer — runtime boundary; TypeScript brand не является защитой.
-- Блокировать event handlers, inline style, executable/embed tags, DOM-clobbering IDs и unsafe protocols. External image policy и CSP должны совпадать.
-- Содержимое документа не отправляется в сеть и не логируется. Remote HTTPS images — единственное разрешённое обращение к third-party content и управляются preference/policy.
-- Не добавлять secrets. Пользовательские diagnostics не включают текст документа.
+- File, Markdown, raw HTML, URL, language label and persisted bytes are untrusted.
+- Raw HTML is not executed. Sanitizer is the runtime boundary; a TypeScript brand is not protection.
+- Block event handlers, inline style, executable/embed tags, DOM-clobbering IDs and unsafe protocols. External image policy and CSP must match.
+- Document content is not sent to the network or logged. Remote HTTPS images are the only allowed third-party content request and are controlled by preference/policy.
+- Do not add secrets. User-visible diagnostics do not include document text.
 
-## Проверки и завершение
+## Verification and Completion
 
-После изменения запустить проверки task-файла и релевантный regression suite. Базовый gate после bootstrap: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`; E2E/a11y/performance — когда требует task.
+After a change, run task-file checks and the relevant regression suite. Baseline gate after bootstrap: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`; E2E/a11y/performance when the task requires them.
 
-Для Playwright в Windows/Codex sandbox действует отдельное operational rule:
+For Playwright in the Windows/Codex sandbox, the following operational rule applies:
 
-- если сам тест проходит, но managed `webServer` зависает на teardown, считать это ограничением sandbox до воспроизведения в обычном terminal;
-- не менять `playwright.config.ts` и нормальное Playwright/CI behavior только ради обхода sandbox;
-- для проверки запустить Vite отдельно, использовать `reuseExistingServer`, сохранить точный PID Vite и после теста завершить только этот PID;
-- никогда не завершать все процессы `node.exe`; перед завершением проверить точную принадлежность PID запущенному Vite;
-- менять обычный Playwright/CI flow только если та же проблема воспроизводится вне Codex.
+- if the test itself passes but managed `webServer` hangs during teardown, treat it as a sandbox limitation until reproduced in a normal terminal;
+- do not change `playwright.config.ts` or normal Playwright/CI behavior only to work around the sandbox;
+- for verification, start Vite separately, use `reuseExistingServer`, record the exact Vite PID and stop only that PID after the test;
+- never terminate all `node.exe` processes; before termination, verify the exact PID belongs to the Vite process you started;
+- change the normal Playwright/CI flow only if the same problem reproduces outside Codex.
 
-Задача не завершена, если обязательная проверка падает, acceptance criterion не доказан или остался скрытый blocker. Completion report перечисляет:
+A task is not complete if a required check fails, an acceptance criterion is not proven or a hidden blocker remains. The completion report lists:
 
-- изменённые файлы и фактический outcome;
-- выполненные команды с результатом;
+- changed files and actual outcome;
+- commands run with results;
 - acceptance criteria;
-- отклонения от спецификации и причины;
-- residual risks/следующий task.
+- deviations from the specification and reasons;
+- residual risks/next task.
 
-Обновлять task status или roadmap только подтверждённым фактом. Не отмечать phase gate зелёным по одной компиляции. Если меняются публичное поведение, архитектурный контракт, схема или подтверждённые команды, синхронно обновить соответствующий файл в `codex-spec/`; корневой README обновлять только фактами, полезными пользователю или разработчику при обычном знакомстве с проектом.
+Update task status or roadmap only with confirmed facts. Do not mark a phase gate green after only one compilation. If public behavior, architectural contract, schema or confirmed commands change, update the corresponding file in `codex-spec/` at the same time; update the root README only with facts useful to a user or developer during ordinary project orientation.

@@ -11,6 +11,10 @@
 7. If a required check fails, fix it within scope or report blocker; never mark complete.
 8. Give the exact Completion report required by the task.
 
+## Documentation language
+
+`AGENTS.md` and every file under `codex-spec/` must remain English-only execution documentation. Describe Russian UI locale requirements in English; do not add literal non-English UI labels, prompts or prose to these files.
+
 ## Status convention
 
 Until code repository establishes its own tracker, completion is evidenced by code/tests/report, not by editing the task checkbox. When the first implementation session needs persistent status, it creates a single repository file `codex-spec/implementation-status.md` with:
@@ -63,15 +67,15 @@ If a Playwright test passes but its managed `webServer` hangs during teardown on
 ## Universal start prompt
 
 ```text
-Выполни ровно задачу <TASK_FILE> в этом репозитории.
+Complete exactly the task <TASK_FILE> in this repository.
 
-Сначала полностью прочитай корневой AGENTS.md, затем <TASK_FILE> и перечисленные в нём Read before starting. До изменений изучи фактическую структуру проекта, package.json/lockfile, git status/diff, выполненные зависимости задачи и существующие тесты. Не повторяй уже готовую работу и не перезаписывай пользовательские изменения.
+First read the root AGENTS.md completely, then <TASK_FILE> and the documents listed in its Read before starting section. Before making changes, inspect the actual project structure, package.json/lockfile, git status/diff, completed task dependencies and existing tests. Do not repeat already completed work and do not overwrite user changes.
 
-Реализуй Scope и acceptance criteria задачи, соблюдая Non-goals и архитектурные/security/UI границы. Не принимай молча фундаментальные решения и не меняй стек. Если документация существенно расходится с кодом или не хватает блокирующего решения, остановись и опиши конкретное расхождение.
+Implement the task Scope and acceptance criteria while respecting Non-goals and the architectural/security/UI boundaries. Do not silently make fundamental decisions and do not change the stack. If documentation substantially differs from code or a blocking decision is missing, stop and describe the specific mismatch.
 
-Добавь Required tests, выполни Verification и релевантный regression suite. Не объявляй задачу завершённой при падающих обязательных проверках.
+Add Required tests, run Verification and the relevant regression suite. Do not declare the task complete when required checks fail.
 
-В конце дай Completion report: outcome; изменённые файлы; выполненные команды и результаты; закрытые acceptance criteria; отклонения от спецификации; остаточные риски/блокеры; следующий разблокированный task ID.
+At the end, provide a Completion report: outcome; changed files; commands run and results; closed acceptance criteria; deviations from specification; residual risks/blockers; next unblocked task ID.
 ```
 
-Пример первого запуска: заменить `<TASK_FILE>` на `codex-spec/tasks/P00-T01-project-bootstrap.md`.
+First-run example: replace `<TASK_FILE>` with `codex-spec/tasks/P00-T01-project-bootstrap.md`.

@@ -1,11 +1,11 @@
 # Final acceptance checklist
 
-Заполняется фактическими ссылками на тесты/reports/build. Не отмечать пункт по плану или визуальному впечатлению.
+Fill this with actual links to tests/reports/builds. Do not check an item based on a plan or visual impression.
 
 ## MVP coverage
 
-- [ ] Один UTF-8 `.md` импортируется атомарно; invalid/multiple/too-large/cancel/quota/crash не публикуют partial Document.
-- [ ] Library переживает reload, показывает correct title/progress/stable activity order и управляет import/open/replace/delete.
+- [ ] One UTF-8 `.md` imports atomically; invalid/multiple/too-large/cancel/quota/crash paths do not publish a partial Document.
+- [ ] Library survives reload, shows correct title/progress/stable activity order and supports import/open/replace/delete.
 - [ ] CommonMark/GFM corpus, footnotes, tables, task lists and code render safely; raw HTML inert.
 - [ ] Whole-document H1–H3 TOC reaches correct content in both modes.
 - [ ] Continuous bounded reader reaches entire large corpus without load-more/content loss.
@@ -39,7 +39,7 @@
 - [ ] Light/dark/system covers reader/code/table/overlays/status/focus and starts without wrong-theme flash.
 - [ ] Loading, empty, partial, success, recoverable/fatal error, offline, disabled and approximate states are implemented where specified.
 - [ ] Errors say what happened, what stayed safe and next action; actionable errors are not toast-only.
-- [ ] Long Russian title/filename/code/table and duplicate titles do not break layout.
+- [ ] Long Russian-locale title/filename/code/table content and duplicate titles do not break layout.
 
 ## Responsive and accessibility
 

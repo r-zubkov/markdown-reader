@@ -26,7 +26,7 @@ Candidate if hash differs and normalized filename or normalized title exactly ma
 
 - One candidate → show existing/selected summary and Replace/Separate/Cancel.
 - Multiple candidates → require target selection or Separate/Cancel.
-- Explicit «Заменить файлом» supplies target and skips similarity ambiguity, but still checks exact duplicate.
+- Explicit Replace With File supplies target and skips similarity ambiguity, but still checks exact duplicate.
 - Separate creates a new `documentId`, default ReaderState and independent progress.
 
 ## Replace transaction

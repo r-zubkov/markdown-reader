@@ -16,7 +16,7 @@ The later UI blueprint supersedes the earlier CSS Modules recommendation only fo
 
 | Need | Use directly/wrap | Own component |
 |---|---|---|
-| Button, Progress, Skeleton, Spinner, Alert | Adapted shadcn primitive | — |
+| Button, Progress, Skeleton, Spinner, Alert | Adapted shadcn primitive | - |
 | Dialog, AlertDialog, Sheet, Popover, DropdownMenu | shadcn React Aria base through app conventions | `ResponsiveOverlay` when one flow changes shell by width |
 | RadioGroup/ToggleGroup | React Aria-based shadcn; RadioGroup for described options | `ReadingSettings` composition |
 | FileTrigger/DropZone | React Aria components, locally wrapped for tokens/errors | `FileDropField` |
@@ -112,7 +112,7 @@ Spacing scale: `2, 4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96` px. New arbitra
 - Table preserves min-content; reduce type by at most one token. Add focusable overflow region only when actual overflow is detected and label it.
 - Images `max-inline-size:100%; block-size:auto`; resize triggers chunk remeasurement.
 - External link has visible indicator that does not rely only on icon/color.
-- Footnote labels/back labels are Russian and accessible; generated IDs use application prefix.
+- Footnote labels/back labels are localized for Russian UI and accessible; generated IDs use application prefix.
 - Task-list checkbox is noninteractive/read-only unless source semantics demand disabled control; it must not enter tab order.
 - User raw HTML appears as literal escaped markup, not DOM elements.
 
@@ -155,14 +155,14 @@ Library row is not one giant button with nested buttons. Title can be link; Cont
 - Route completion moves focus to screen heading/reader restore status. Pointer TOC selection does not force heading focus; keyboard activation does.
 - Virtual window may not unmount focused content. Controller pins/overscans focused element or moves focus to stable reader marker before window change.
 - Live announcements: import stage/result, mode switch, approximate restore once, copy result, online/update changes. Never announce scroll percentage continuously.
-- 44×44 project minimum for touch controls, 8 px between adjacent icon controls. Inline prose links remain text links with sufficient line height/focus.
+- 44x44 project minimum for touch controls, 8 px between adjacent icon controls. Inline prose links remain text links with sufficient line height/focus.
 - 200% and 400% zoom/reflow, custom text spacing, reduced motion and forced colors are manual gates.
 
 ## Icons and copy
 
 - Icon-only allowed only for frequent toolbar controls with `aria-label`; destructive/rare actions require visible text in menus/dialogs.
-- Russian strings live in a catalog/module separate from domain codes. Avoid ambiguous «Да/Нет»: use «Заменить документ», «Добавить отдельно», «Удалить документ».
-- Error copy: что произошло → что осталось безопасным → что сделать. Do not blame user or lead with internal code.
+- Russian-locale strings live in a catalog/module separate from domain codes. Avoid ambiguous yes/no actions: use explicit action labels such as replace document, add separately and delete document.
+- Error copy order: what happened -> what stayed safe -> what to do. Do not blame user or lead with internal code.
 - Do not show search field, cloud/sync language or fake success for a staging operation.
 
 ## Visual prohibitions

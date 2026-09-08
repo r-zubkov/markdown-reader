@@ -58,7 +58,7 @@ Compare at least:
 3. `directDomUpdates` only if standard mode fails measured budget;
 4. bounded manual window/sections fallback if library approach fails.
 
-Record browser/device, DOM node/window count, sustained blank gap/jump observations, main-thread long tasks and anchor drift. Gate must define measurable tolerance before P03-T02; no «выглядит нормально» approval.
+Record browser/device, DOM node/window count, sustained blank gap/jump observations, main-thread long tasks and anchor drift. Gate must define measurable tolerance before P03-T02; no looks-fine approval.
 
 ## Spike D — semantic progress mapping
 

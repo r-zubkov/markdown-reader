@@ -1,80 +1,80 @@
-# Project source of truth
+# Project Source of Truth
 
-## Проблема и ценность
+## Problem and Value
 
-Markdown-файлы неудобно долго читать в редакторе, а прямой рендер крупного документа в единый HTML создаёт тяжёлый DOM и не сохраняет читательский контекст. Продукт импортирует локальный UTF-8 `.md`, безопасно превращает его в оформленный документ, сохраняет в браузере и возвращает пользователя к последнему смысловому месту — без backend и отправки содержимого на сервер.
+Markdown files are inconvenient to read for long periods inside an editor, while directly rendering a large document into one HTML tree creates a heavy DOM and does not preserve reading context. The product imports a local UTF-8 `.md`, safely converts it into a formatted document, stores it in the browser and returns the user to the last meaningful location, without a backend or sending content to a server.
 
-## Пользователь и контекст
+## User and Context
 
-Одна роль: владелец локальной библиотеки Markdown-документов в текущем browser profile/origin. Desktop и mobile равноприоритетны. Поддерживается любой валидный Markdown-файл в границах подтверждённых лимитов; важный stress case — крупные технические документы с кодом, таблицами, длинными списками, ссылками, сносками и неоднородной структурой heading.
+One role: the owner of a local Markdown-document library in the current browser profile/origin. Desktop and mobile have equal priority. Any valid Markdown file is supported within confirmed limits; the important stress case is a large technical document with code, tables, long lists, links, footnotes and uneven heading structure.
 
-## Канонические сценарии MVP
+## Canonical MVP Scenarios
 
-1. Открыть библиотеку, выбрать ровно один `.md`, видеть честные этапы обработки и отменить до commit.
-2. После успешной атомарной финализации увидеть документ вверху списка и открыть его.
-3. Читать весь документ как CommonMark + GFM с подсветкой безопасно распознанного кода.
-4. Перейти через глобальное оглавление `H1–H3` в continuous или sections mode.
-5. Переключить mode/strategy, оставаясь у того же semantic anchor.
-6. Закрыть/reload и продолжить с точного либо явно обозначенного приблизительного места.
-7. Не создать точный дубликат; для похожего изменённого файла выбрать replace, separate или cancel.
-8. Удалить документ только после подтверждения.
-9. После первого online visit запустить app shell offline и читать уже сохранённые документы.
+1. Open the library, choose exactly one `.md`, see honest processing stages and cancel before commit.
+2. After successful atomic finalization, see the document at the top of the list and open it.
+3. Read the whole document as CommonMark + GFM with safely recognized code highlighting.
+4. Navigate through the full-document `H1-H3` table of contents in continuous or sections mode.
+5. Switch mode/strategy while staying at the same semantic anchor.
+6. Close/reload and continue from an exact position or a clearly marked approximate position.
+7. Avoid creating an exact duplicate; for a similar changed file, choose replace, separate or cancel.
+8. Delete a document only after confirmation.
+9. After the first online visit, launch the app shell offline and read already saved documents.
 
-## Граница MVP
+## MVP Boundary
 
-- Browser-only SPA/PWA, статическая раздача по HTTPS.
-- React UI; чистые TypeScript domain/pipeline modules; Web Worker для тяжёлой обработки.
-- Локальная IndexedDB-библиотека, исходный Blob, versioned derived chunks и reader state.
-- Continuous virtual reader и sections reader.
-- Split strategies: `auto`, `h1`, `h2`, `h3`, `whole`; internal safe chunks работают всегда.
-- Auto initial mode: документ с низкой измеренной стоимостью рендера — continuous, с высокой — sections; threshold определяется PoC и применяется только до явного выбора пользователя.
-- Semantic progress, full-document TOC, duplicate/update/delete, storage/recovery states.
-- Светлая, тёмная и системная theme preference; русский UI; WCAG 2.2 AA baseline.
-- HTTPS remote images по privacy policy; относительные локальные ресурсы не импортируются.
+- Browser-only SPA/PWA, statically served over HTTPS.
+- React UI; pure TypeScript domain/pipeline modules; Web Worker for heavy processing.
+- Local IndexedDB library, source Blob, versioned derived chunks and reader state.
+- Continuous virtual reader and sections reader.
+- Split strategies: `auto`, `h1`, `h2`, `h3`, `whole`; internal safe chunks always operate.
+- Auto initial mode: a document with low measured render cost uses continuous, a document with high measured cost uses sections; the threshold is defined by PoC and applies only before explicit user choice.
+- Semantic progress, full-document TOC, duplicate/update/delete and storage/recovery states.
+- Light, dark and system theme preference; Russian UI locale; WCAG 2.2 AA baseline.
+- HTTPS remote images according to privacy policy; relative local resources are not imported.
 
-## Ключевые продуктовые правила
+## Key Product Rules
 
-- Ни один режим не обрезает и не теряет содержимое. Paragraph/list/table/quote/code block не разрывается посередине; огромный неделимый node получает безопасный fallback.
-- `whole` — один логический navigation section, но не отключение chunking/virtualization.
-- Split strategy определяет sections layout. В continuous mode она сохраняется как настройка будущего перехода, не меняя визуальную модель единой ленты.
-- Обычное открытие восстанавливает saved anchor; явный URL hash heading имеет приоритет и затем становится новой текущей позицией.
-- Exact duplicate определяется SHA-256 исходных bytes. Filename/title — только эвристика возможного update; последнее слово за пользователем.
-- Replace сохраняет `documentId`, старую ready version до commit и пытается map progress: exact → approximate → start with notice.
-- Название: первый `H1`, иначе filename без расширения. Повторяющиеся headings получают детерминированные уникальные IDs.
-- Library стартует на `/`, сортируется по последней активности, stable tie-breaker — `documentId`.
-- Успешный import остаётся в library и предлагает «Открыть документ»; это обратимое UX assumption `ASM-002`.
-- Raw HTML показывается как inert escaped content; никогда не исполняется.
+- No mode truncates or loses content. Paragraph/list/table/quote/code block content is not split in the middle; a huge indivisible node gets a safe fallback.
+- `whole` is one logical navigation section, not a way to disable chunking/virtualization.
+- Split strategy defines sections layout. In continuous mode it is saved as the setting for a future switch and does not change the single-stream visual model.
+- Normal open restores the saved anchor; an explicit URL hash heading has priority once and then becomes the new current position.
+- Exact duplicate is determined by SHA-256 of the source bytes. Filename/title are only a possible-update heuristic; the user has the final decision.
+- Replace keeps `documentId`, keeps the old ready version until commit and tries to map progress: exact -> approximate -> start with notice.
+- Title: first `H1`, otherwise filename without extension. Repeated headings get deterministic unique IDs.
+- Library starts at `/`, sorts by last activity and uses `documentId` as the stable tie-breaker.
+- Successful import remains in the library and offers an Open Document action; this is reversible UX assumption `ASM-002`.
+- Raw HTML is shown as inert escaped content; it is never executed.
 
-## После MVP
+## After MVP
 
-Приоритет: backup/export + restore → full-document search → typography controls → bookmarks → notes/collections → local asset packages → optional sync. Каждая возможность требует отдельной схемы/feature spec.
+Priority: backup/export + restore -> full-document search -> typography controls -> bookmarks -> notes/collections -> local asset packages -> optional sync. Each capability requires its own schema/feature spec.
 
-## Явно исключено
+## Explicitly Excluded
 
-Backend, accounts, cloud sync, cross-device transfer, server analytics, search в MVP, editing/authoring, MDX, executable HTML, Mermaid/LaTeX/plugins, folders/archives, linked local images, notes/bookmarks/tags, SSR/RSC, desktop shell, AI и store/catalog.
+Backend, accounts, cloud sync, cross-device transfer, server analytics, search in MVP, editing/authoring, MDX, executable HTML, Mermaid/LaTeX/plugins, folders/archives, linked local images, notes/bookmarks/tags, SSR/RSC, desktop shell, AI and store/catalog.
 
-## Ограничения
+## Constraints
 
-- Storage origin-scoped, quota/eviction управляются браузером; исходный файл должен оставаться у пользователя. MVP не обещает backup.
-- Максимальный file size, chunk cost, DOM window, overscan, supported highlight grammars и anchor tolerance фиксируются только после PoC.
-- Tailwind CSS 4 задаёт технический browser floor Safari 16.4+, Chrome 111+, Firefox 128+; release target — текущие стабильные desktop Chromium/Firefox/Safari и mobile Safari/Chrome при соблюдении floor.
-- First visit без сети не поддерживается. После успешной установки app shell работает offline.
+- Storage is origin-scoped, with quota/eviction controlled by the browser; the user must retain the original file. MVP does not promise backup.
+- Maximum file size, chunk cost, DOM window, overscan, supported highlight grammars and anchor tolerance are fixed only after PoC.
+- Tailwind CSS 4 sets the technical browser floor at Safari 16.4+, Chrome 111+ and Firefox 128+; the release target is current stable desktop Chromium/Firefox/Safari and mobile Safari/Chrome while respecting that floor.
+- First visit without network is not supported. After successful installation, the app shell works offline.
 
-## Глоссарий
+## Glossary
 
-| Термин | Каноническое значение |
+| Term | Canonical meaning |
 |---|---|
-| Document | Стабильная пользовательская запись импортированного Markdown-файла |
-| Document version | Один импорт исходных bytes документа и его derived data |
-| Source blob | Оригинальные bytes `.md`, достаточные для rebuild |
-| Chunk | Внутренняя безопасная render-единица между top-level AST nodes |
-| Section | Пользовательская navigation-часть layout; содержит один или несколько chunks |
-| Outline | Иерархия `H1–H3` всей версии |
-| Reading mode | `continuous` или `sections` |
+| Document | Stable user-facing record of an imported Markdown file |
+| Document version | One import of a document's source bytes and derived data |
+| Source blob | Original `.md` bytes sufficient for rebuild |
+| Chunk | Internal safe render unit between top-level AST nodes |
+| Section | User-facing navigation part of the layout; contains one or more chunks |
+| Outline | `H1-H3` hierarchy for the whole version |
+| Reading mode | `continuous` or `sections` |
 | Split strategy | `auto`, `h1`, `h2`, `h3`, `whole` |
-| Semantic anchor | Heading path + block location + ratios для восстановления позиции |
-| Ready version | Единственная опубликованная текущая версия документа |
-| Staging version | Неполный импорт, невидимый как документ до commit |
-| Pipeline version | Версия алгоритма parse/sanitize/highlight/serialization |
-| Exact restore | Восстановление того же semantic block с высокой уверенностью |
-| Approximate restore | Fallback по heading/overall ratio с видимым уведомлением |
+| Semantic anchor | Heading path plus block location and ratios used to restore position |
+| Ready version | The only published current version of a document |
+| Staging version | Incomplete import, invisible as a document until commit |
+| Pipeline version | Version of the parse/sanitize/highlight/serialization algorithm |
+| Exact restore | Restoring the same semantic block with high confidence |
+| Approximate restore | Fallback by heading/overall ratio with a visible notice |
