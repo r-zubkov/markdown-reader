@@ -6,7 +6,7 @@
 
 - Импортировать локальные UTF-8 Markdown-файлы по одному.
 - Безопасно отображать CommonMark и GFM, включая код, таблицы, списки задач и сноски.
-- Читать документ непрерывной лентой или по разделам.
+- Читать документ непрерывной лентой или по разделам со стратегиями `auto`, `H1`, `H2`, `H3` и `whole`.
 - Строить оглавление по заголовкам `H1–H3` и открывать ссылки на конкретный заголовок.
 - Сохранять прогресс и возвращать пользователя к последнему смысловому месту.
 - Распознавать точные дубликаты и управляемо заменять изменённую версию файла.
@@ -59,6 +59,8 @@ Bootstrap [P00-T01: Project bootstrap](codex-spec/tasks/P00-T01-project-bootstra
 
 Pipeline spike [P00-T02: Content pipeline and limits spike](codex-spec/tasks/P00-T02-content-pipeline-spike.md) завершён: добавлены prototype modules для Markdown pipeline, deterministic corpus, security/bench tests и [pipeline-spike report](docs/benchmarks/pipeline-spike.md). Лимиты пока являются P00 proposal, а не release SLA.
 
+Storage spike [P00-T03: IndexedDB atomicity spike](codex-spec/tasks/P00-T03-storage-atomicity-spike.md) завершён: добавлены Dexie prototype schema/repository, fake-IDB integration tests, Chromium IndexedDB confirmation и [storage-atomicity report](docs/benchmarks/storage-atomicity-spike.md). P01-T02 разблокирован для production schema/repository skeleton.
+
 Проверенная среда:
 
 - Node `>=22.22.0`;
@@ -74,11 +76,13 @@ corepack pnpm lint
 corepack pnpm test
 corepack pnpm test:security
 corepack pnpm test:bench
+corepack pnpm exec vitest run src/infrastructure/db/storage-atomicity-spike.test.ts --reporter verbose
+PLAYWRIGHT_BROWSERS_PATH=.ms-playwright corepack pnpm exec playwright test e2e/storage-atomicity.spec.ts --project=chromium
 corepack pnpm build
 corepack pnpm test:e2e:list
 ```
 
-В Codex sandbox эти команды запускались с `COREPACK_HOME=.corepack`, чтобы Corepack cache оставался внутри рабочей папки.
+В Codex sandbox эти команды запускались с `COREPACK_HOME=.corepack`, чтобы Corepack cache оставался внутри рабочей папки. Chromium для browser confirmation установлен в workspace-local `.ms-playwright/`; Playwright проверен с отдельно запущенным Vite и `reuseExistingServer`, потому что managed webServer teardown зависает только в этом окружении.
 
 ## Документация для разработки
 
@@ -92,9 +96,9 @@ corepack pnpm test:e2e:list
 ## Текущий статус
 
 - Спецификация: `COMPLETE · QA PASSED`.
-- Реализация: `P00-T01/P00-T02 COMPLETE · P00 SPIKES CONTINUE`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`.
-- Следующие разблокированные задачи: `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`.
+- Реализация: `P00-T01/P00-T02/P00-T03 COMPLETE · P00 SPIKES CONTINUE`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`.
+- Следующие разблокированные задачи: `P00-T04`, `P00-T05`, `P00-T06`.
 
 ## Текущая структура репозитория
 
@@ -136,11 +140,14 @@ src/
   app/
   domain/
     content/
+  infrastructure/
+    db/
   main.tsx
   styles/
   test/
     bench/
     corpus/
+    fixtures/
     security/
   workers/
 tools/
@@ -148,4 +155,4 @@ tools/
 e2e/
 ```
 
-Эта структура отражает bootstrap foundation и P00-T02 pipeline spike. Производственные feature-модули, IndexedDB schema, shadcn primitives и PWA shell добавляются последующими task-файлами.
+Эта структура отражает bootstrap foundation, P00-T02 pipeline spike и P00-T03 storage atomicity spike. Производственные feature-модули, shadcn primitives и PWA shell добавляются последующими task-файлами.

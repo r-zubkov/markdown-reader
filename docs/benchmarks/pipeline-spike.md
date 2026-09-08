@@ -131,7 +131,7 @@ Recommendation for DFR-002: ship explicit-label highlighting first. Keep auto-de
 
 - Marker preservation: default tests assert every expected marker appears exactly once and in order across `small`, `medium`, `no-headings`, `repeated-unicode-headings`, `long-code`, `single-long-line`, `wide-table` and `huge-single-node`.
 - No top-level split: default tests assert one block anchor per parsed top-level mdast node.
-- Layout coverage: default tests assert `auto`, `h1`, `h2` and `whole` cover the full chunk range without gaps; `whole` remains one logical section over multiple internal chunks.
+- Layout coverage: default tests assert `auto`, `h1`, `h2`, `h3` and `whole` cover the full chunk range without gaps; `whole` remains one logical section over multiple internal chunks.
 - Security corpus: security tests assert no executable/embed tags, `on*`, `style`, `name`, non-`mdr-*` IDs, unsafe link protocols, HTTP/relative/SVG data image output.
 - Boundary behavior: tests cover invalid UTF-8, below/at/above byte limit, full-buffer SHA-256, oversized code fallback and oversized node fallback.
 

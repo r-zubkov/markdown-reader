@@ -159,7 +159,7 @@ States: confirm → deleting (controls disabled) → success/inline recoverable 
 Popover desktop when content fits; Sheet at narrow width/height. Immediate persisted choices:
 
 - Reading mode RadioGroup: `Непрерывно`, `По разделам` with descriptions.
-- Split strategy RadioGroup: `Автоматически`, `По H1`, `По H2`, `Весь документ`; description says it defines sections and internal safe chunks remain.
+- Split strategy RadioGroup: `Автоматически`, `По H1`, `По H2`, `По H3`, `Весь документ`; description says it defines sections and internal safe chunks remain.
 - In continuous mode, strategy choice is saved but document remains one stream; UI explicitly states strategy affects section mode.
 - Theme group/link: `Системная/Светлая/Тёмная`, global not per-document.
 

@@ -504,7 +504,10 @@ function partitionBlocks(
   let currentCost = 0;
 
   for (const block of blocks) {
-    const startsHardSection = block.firstHeading?.level === 1 || block.firstHeading?.level === 2;
+    const startsHardSection =
+      block.firstHeading?.level === 1 ||
+      block.firstHeading?.level === 2 ||
+      block.firstHeading?.level === 3;
     const exceedsTarget =
       current.length > 0 && currentCost + block.estimatedCost > limits.targetChunkCost;
 
@@ -878,6 +881,7 @@ function buildLayouts(
     auto: buildAutoLayout(chunks, limits),
     h1: buildHeadingLayout("h1", chunks, 1, limits),
     h2: buildHeadingLayout("h2", chunks, 2, limits),
+    h3: buildHeadingLayout("h3", chunks, 3, limits),
     whole: buildWholeLayout(chunks, limits),
   };
 }
@@ -920,26 +924,36 @@ function buildAutoLayout(
   limits: PipelineLimits,
 ): SectionLayout {
   const h1Layout = buildHeadingLayout("auto", chunks, 1, limits);
-  const hasUsefulH1 = h1Layout.sections.some((section) => section.headingId !== undefined);
-
-  if (hasUsefulH1 && h1Layout.sections.every((section) => section.estimatedCost <= limits.maxChunkCostBeforeFallback)) {
+  if (isUsefulLayoutWithinBudget(h1Layout, limits)) {
     return h1Layout;
   }
 
   const h2Layout = buildHeadingLayout("auto", chunks, 2, limits);
-  const hasUsefulH2 = h2Layout.sections.some((section) => section.headingId !== undefined);
-
-  if (hasUsefulH2) {
+  if (isUsefulLayoutWithinBudget(h2Layout, limits)) {
     return h2Layout;
+  }
+
+  const h3Layout = buildHeadingLayout("auto", chunks, 3, limits);
+  if (isUsefulLayoutWithinBudget(h3Layout, limits)) {
+    return h3Layout;
   }
 
   return buildCostLayout("auto", chunks, limits);
 }
 
+function isUsefulLayoutWithinBudget(layout: SectionLayout, limits: PipelineLimits): boolean {
+  return (
+    layout.sections.some((section) => section.headingId !== undefined) &&
+    layout.sections.every(
+      (section) => section.estimatedCost <= limits.maxChunkCostBeforeFallback,
+    )
+  );
+}
+
 function buildHeadingLayout(
   strategy: SplitStrategy,
   chunks: readonly ChunkPlan[],
-  headingDepth: 1 | 2,
+  headingDepth: 1 | 2 | 3,
   limits: PipelineLimits,
 ): SectionLayout {
   if (chunks.length === 0) {

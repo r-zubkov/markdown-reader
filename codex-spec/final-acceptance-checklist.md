@@ -9,7 +9,7 @@
 - [ ] CommonMark/GFM corpus, footnotes, tables, task lists and code render safely; raw HTML inert.
 - [ ] Whole-document H1–H3 TOC reaches correct content in both modes.
 - [ ] Continuous bounded reader reaches entire large corpus without load-more/content loss.
-- [ ] Sections/pager and `auto/h1/h2/whole` cover entire document; `whole` retains internal chunks.
+- [ ] Sections/pager and `auto/h1/h2/h3/whole` cover entire document; `whole` retains internal chunks.
 - [ ] Initial auto mode, user mode/strategy preferences and per-document persistence behave deterministically.
 - [ ] Reload/mode/strategy/replace restore exact or visible defined fallback.
 - [ ] Exact duplicate, replace/separate/cancel and confirmed delete pass success/failure paths.

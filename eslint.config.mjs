@@ -10,6 +10,7 @@ export default tseslint.config(
     ignores: [
       "coverage/**",
       ".corepack/**",
+      ".ms-playwright/**",
       "dist/**",
       "node_modules/**",
       "playwright-report/**",

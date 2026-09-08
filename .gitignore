@@ -144,5 +144,6 @@ vite.config.ts.timestamp-*
 .vite/
 
 # Playwright
+.ms-playwright/
 playwright-report/
 test-results/

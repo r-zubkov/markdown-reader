@@ -15,7 +15,7 @@
 type DocumentId = string & { readonly __brand: 'DocumentId' };
 type VersionId = string & { readonly __brand: 'VersionId' };
 type ReadingMode = 'continuous' | 'sections';
-type SplitStrategy = 'auto' | 'h1' | 'h2' | 'whole';
+type SplitStrategy = 'auto' | 'h1' | 'h2' | 'h3' | 'whole';
 type ModeOrigin = 'auto' | 'user';
 type RestoreConfidence = 'exact' | 'approximate' | 'none';
 
@@ -161,6 +161,19 @@ Document имеет ровно одну `currentVersionId`. Staging versions м�
 | `preferences` | `key` | none | Global theme/privacy/TOC preference |
 
 No index stores full title/content tokens for search in MVP. Exact duplicate query uses indexed `contentHash` and confirms version `ready`/current document validity.
+
+### P00-T03 storage spike findings for P01-T02
+
+P00-T03 confirmed the target stores above with Dexie short transactions and reusable fake-IDB/browser tests. Production P01-T02 must preserve these observed contracts even if implementation details move staging bookkeeping to a separate job table:
+
+- staging tracks expected current version, next batch ordinal, staged chunk count and last staged ordinal;
+- append runs in short `documentVersions + chunks` transactions and rejects wrong job, duplicate/out-of-order batch, non-contiguous chunk ordinal, invalid source range and pipeline mismatch;
+- commit runs in one short `documents + documentVersions + chunks + readerStates` transaction, validates complete chunks/layouts/ranges and only then flips `documents.currentVersionId`;
+- replace requires `expectedCurrentVersionId`; stale replace returns `COMMIT_CONFLICT` and leaves the previous ready version/current reader state usable;
+- old ready cleanup is post-commit, scoped by explicit version id and retryable; abandoned staging cleanup is scoped by job/age/active-job ids and never uses broad clear;
+- library visibility joins `Document.currentVersionId` to a complete `ready` version and hides staging/corrupt partial data;
+- migration/rebuild preserves source bytes. `fake-indexeddb` is sufficient for transaction invariants but did not preserve Node `Blob` shape in the legacy fixture; real-browser IndexedDB smoke remains required for `sourceBlob` recovery evidence.
+- persisted layouts contain all five strategies: `auto`, `h1`, `h2`, `h3` and `whole`.
 
 ## State ownership matrix
 

@@ -24,7 +24,7 @@ Non-goals: search, bookmarks/history of every location, pixel-perfect identical 
 - Layout metadata is precomputed/persisted, not recomputed by visual component.
 - Section index is zero-based internally, displayed one-based. Previous disabled at first; Next disabled at last; labels include destination title when available.
 - Strategy change captures current anchor before selecting new section containing mapped anchor.
-- `auto`: structural/cost layout; `h1`/`h2`: user-level headings plus internal chunks; `whole`: one section if policy safe.
+- `auto`: structural/cost layout; `h1`/`h2`/`h3`: user-level headings plus internal chunks; `whole`: one section if policy safe.
 - If requested layout has no corresponding headings, it remains valid using deterministic safe boundaries/fallback and explains result only if surprising; full content remains reachable.
 - Strategy can be changed while continuous, but affects future sections presentation only.
 

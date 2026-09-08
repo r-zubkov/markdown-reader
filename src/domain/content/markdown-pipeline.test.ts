@@ -5,7 +5,11 @@ import {
   runMarkdownPipeline,
   runMarkdownPipelineFromText,
 } from "./markdown-pipeline";
-import { PIPELINE_LIMITS, PIPELINE_SUPPORTED_LANGUAGES } from "./pipeline-limits";
+import {
+  PIPELINE_LIMITS,
+  PIPELINE_SUPPORTED_LANGUAGES,
+  PIPELINE_VERSION,
+} from "./pipeline-limits";
 import type {
   PipelineRunResult,
   PipelineSuccess,
@@ -31,7 +35,7 @@ const semanticFixtureIds = [
   "huge-single-node",
 ] as const satisfies readonly PipelineCorpusFixtureId[];
 
-const layoutStrategies = ["auto", "h1", "h2", "whole"] as const satisfies readonly SplitStrategy[];
+const layoutStrategies = ["auto", "h1", "h2", "h3", "whole"] as const satisfies readonly SplitStrategy[];
 
 describe("Markdown pipeline spike", () => {
   for (const fixtureId of semanticFixtureIds) {
@@ -145,6 +149,52 @@ describe("Markdown pipeline spike", () => {
     expect(wholeLayout.sections[0]?.endChunkOrdinalInclusive).toBe(
       success.chunks.length - 1,
     );
+  });
+
+  it("uses H3 headings as persisted section boundaries", async () => {
+    const success = expectPipelineSuccess(
+      await runMarkdownPipelineFromText(
+        [
+          "# Root",
+          "",
+          "R".repeat(50),
+          "",
+          "## Group",
+          "",
+          "G".repeat(50),
+          "",
+          "### First detail",
+          "",
+          "F".repeat(50),
+          "",
+          "### Second detail",
+          "",
+          "S".repeat(50),
+        ].join("\n"),
+        "h3-layout.md",
+        {
+          ...PIPELINE_LIMITS,
+          maxChunkCostBeforeFallback: 120,
+          oversizedNodeCost: 10_000,
+          targetChunkCost: 10_000,
+        },
+      ),
+    );
+
+    expect(success.metadata.layouts.h3.sections.map((section) => section.title)).toEqual([
+      "Root",
+      "Group",
+      "First detail",
+      "Second detail",
+    ]);
+    expect(success.metadata.layouts.h3.sections.length).toBeGreaterThan(
+      success.metadata.layouts.h2.sections.length,
+    );
+    expect(success.metadata.layouts.auto.sections.map((section) => section.title)).toEqual(
+      success.metadata.layouts.h3.sections.map((section) => section.title),
+    );
+    expect(success.metadata.layouts.auto.safeForSelection).toBe(true);
+    expect(success.chunks.every((chunk) => chunk.pipelineVersion === PIPELINE_VERSION)).toBe(true);
   });
 
   it("uses SHA-256 over the full UTF-8 byte buffer", async () => {

@@ -26,7 +26,7 @@ Markdown-файлы неудобно долго читать в редактор
 - React UI; чистые TypeScript domain/pipeline modules; Web Worker для тяжёлой обработки.
 - Локальная IndexedDB-библиотека, исходный Blob, versioned derived chunks и reader state.
 - Continuous virtual reader и sections reader.
-- Split strategies: `auto`, `h1`, `h2`, `whole`; internal safe chunks работают всегда.
+- Split strategies: `auto`, `h1`, `h2`, `h3`, `whole`; internal safe chunks работают всегда.
 - Auto initial mode: документ с низкой измеренной стоимостью рендера — continuous, с высокой — sections; threshold определяется PoC и применяется только до явного выбора пользователя.
 - Semantic progress, full-document TOC, duplicate/update/delete, storage/recovery states.
 - Светлая, тёмная и системная theme preference; русский UI; WCAG 2.2 AA baseline.
@@ -71,7 +71,7 @@ Backend, accounts, cloud sync, cross-device transfer, server analytics, search �
 | Section | Пользовательская navigation-часть layout; содержит один или несколько chunks |
 | Outline | Иерархия `H1–H3` всей версии |
 | Reading mode | `continuous` или `sections` |
-| Split strategy | `auto`, `h1`, `h2`, `whole` |
+| Split strategy | `auto`, `h1`, `h2`, `h3`, `whole` |
 | Semantic anchor | Heading path + block location + ratios для восстановления позиции |
 | Ready version | Единственная опубликованная текущая версия документа |
 | Staging version | Неполный импорт, невидимый как документ до commit |

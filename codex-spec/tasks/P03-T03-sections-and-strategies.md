@@ -24,7 +24,7 @@ P03-T01 and P00-T05 complete. Dependencies: P03-T01, P00-T05.
 
 - Render current SectionRef through bounded chunk access and implement accessible SectionPager/context.
 - Implement ReadingSettings mode/strategy RadioGroups with immediate applying/rollback shell.
-- Apply `auto/h1/h2/whole` layout metadata; continuous-mode strategy copy/ownership correct.
+- Apply `auto/h1/h2/h3/whole` layout metadata; continuous-mode strategy copy/ownership correct.
 - Implement initial measured mode with `modeOrigin`, user override persistence hook and unavailable `whole` reason/recommendation.
 - Complete table/code/media states shared with reader where not handled P03-T02.
 
@@ -38,7 +38,7 @@ Sections reader/pager/settings/layout use cases/components/strings/styles and te
 
 ## Implementation notes
 
-Do not recompute layouts in UI. One-section `whole` still queries bounded chunks. `h1/h2` without headings follows precomputed fallback. During apply capture/restore port is invoked even if temporary stub until P03-T04.
+Do not recompute layouts in UI. One-section `whole` still queries bounded chunks. `h1/h2/h3` without headings follows precomputed fallback. During apply capture/restore port is invoked even if temporary stub until P03-T04.
 
 ## UI and states
 
@@ -46,7 +46,7 @@ Sections ready, first/middle/last pager, one section, applying/error rollback, o
 
 ## Edge cases
 
-No H1/H2, repeated titles, huge section/node, strategy chosen while continuous, user mode on replaced larger document, rapid changes, long destination title.
+No H1/H2/H3, repeated titles, huge section/node, strategy chosen while continuous, user mode on replaced larger document, rapid changes, long destination title.
 
 ## Acceptance criteria
 

@@ -82,6 +82,14 @@
 
 После изменения запустить проверки task-файла и релевантный regression suite. Базовый gate после bootstrap: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm build`; E2E/a11y/performance — когда требует task.
 
+Для Playwright в Windows/Codex sandbox действует отдельное operational rule:
+
+- если сам тест проходит, но managed `webServer` зависает на teardown, считать это ограничением sandbox до воспроизведения в обычном terminal;
+- не менять `playwright.config.ts` и нормальное Playwright/CI behavior только ради обхода sandbox;
+- для проверки запустить Vite отдельно, использовать `reuseExistingServer`, сохранить точный PID Vite и после теста завершить только этот PID;
+- никогда не завершать все процессы `node.exe`; перед завершением проверить точную принадлежность PID запущенному Vite;
+- менять обычный Playwright/CI flow только если та же проблема воспроизводится вне Codex.
+
 Задача не завершена, если обязательная проверка падает, acceptance criterion не доказан или остался скрытый blocker. Completion report перечисляет:
 
 - изменённые файлы и фактический outcome;

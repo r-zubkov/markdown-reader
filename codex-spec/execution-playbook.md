@@ -49,6 +49,17 @@ Always run typecheck/lint and tests directly touched. Additionally:
 - primitive/theme/responsive → component a11y + affected screenshots/viewports;
 - PWA → production build/offline/update isolated-profile E2E.
 
+## Playwright in Windows/Codex sandbox
+
+If a Playwright test passes but its managed `webServer` hangs during teardown only in the Windows/Codex sandbox:
+
+1. Treat the hang as environment-specific until it reproduces in a normal terminal.
+2. Keep `playwright.config.ts` and normal Playwright/CI behavior unchanged.
+3. Start Vite separately and let Playwright use `reuseExistingServer`.
+4. Record and verify the exact Vite PID before running the test.
+5. After the test, terminate only that PID and confirm its listener is gone. Never terminate all `node.exe` processes.
+6. Change the normal Playwright/CI flow only after the same teardown failure is reproduced outside Codex.
+
 ## Universal start prompt
 
 ```text

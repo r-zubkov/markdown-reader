@@ -23,7 +23,7 @@
 | PRD-006 | Continuous mode выглядит как единая лента без «загрузить ещё» и не монтирует весь крупный документ. | SOURCE |
 | PRD-007 | Sections mode показывает одну логическую часть, pager и `Раздел N из M · Название`. | SOURCE |
 | PRD-008 | До явного выбора пользователя initial mode определяется измеренным порогом размера/стоимости документа. | SOURCE + DERIVED |
-| PRD-009 | Доступны strategies `auto/h1/h2/whole`; они определяют section layout, но не отключают chunks. | SOURCE + DERIVED |
+| PRD-009 | Доступны strategies `auto/h1/h2/h3/whole`; они определяют section layout, но не отключают chunks. | SOURCE + DERIVED |
 | PRD-010 | Весь контент доступен и сохраняет порядок; цельный AST block не режется посередине. | SOURCE |
 | PRD-011 | Progress сохраняется автоматически и восстанавливает semantic position после reload/mode/strategy switch. | SOURCE |
 | PRD-012 | Exact duplicate по SHA-256 не создаётся; предлагается открыть существующий документ. | SOURCE |
@@ -155,6 +155,7 @@
 |---|---|---|
 | DFR-001 | P00-T02 добавил `src/domain/content/pipeline-limits.ts` и `docs/benchmarks/pipeline-spike.md`: proposal для `maxFileBytes=1_250_000`, chunk cost, oversized-node/code fallback и batch shape подтверждён deterministic corpus/security/bench tests. | Частично закрыто только для content pipeline. DOM window, overscan, browser memory и anchor tolerance остаются за P00-T04/P00-T05/P00-T06. |
 | DFR-002 | P00-T02 предлагает expanded explicit lowlight set: `bash`, `c`, `cpp`, `csharp`, `css`, `diff`, `go`, `graphql`, `ini`, `java`, `javascript`, `json`, `kotlin`, `less`, `lua`, `makefile`, `markdown`, `objectivec`, `perl`, `php`, `plaintext`, `python`, `r`, `ruby`, `rust`, `scss`, `shell`, `sql`, `swift`, `typescript`, `wasm`, `xml`, `yaml`; aliases documented in spike report. Auto-detect остаётся gated by size/confidence и не должен подсвечивать low/medium-confidence unlabeled code. | Proposal до production rerun в P02-T01. |
+| TECH-008/009/010, NFR-002/007 | P00-T03 добавил Dexie `4.4.5` storage atomicity prototype, fake-IDB integration tests, Chromium IndexedDB Blob confirmation and `docs/benchmarks/storage-atomicity-spike.md`. Staging/append/commit/abort/cleanup/migration/current-version preconditions доказаны для spike scope. | Закрывает storage atomicity spike для P01-T02. `fake-indexeddb` Blob-shape divergence documented; source Blob recovery still requires browser smoke when production schema changes. |
 
 ## Трассировка
 

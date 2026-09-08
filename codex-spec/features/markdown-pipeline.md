@@ -30,10 +30,10 @@ Sanitization must follow every transformation capable of adding nodes/attributes
 ## Partition invariants
 
 - Input top-level nodes map to output exactly once, in order.
-- Boundary exists only between nodes. H1/H2 are preferred hard boundaries before heading; cost budget adds soft boundary.
+- Boundary exists only between nodes. H1/H2/H3 are preferred hard boundaries before heading; cost budget adds soft boundary.
 - Oversized single node becomes one flagged chunk and uses type-specific safe fallback/limited highlight; never split source invisibly or truncate.
-- `auto`: H1 groups, then H2 for oversized groups, then safe soft boundaries.
-- `h1`/`h2`: navigation boundaries follow headings where present; oversized logical sections still contain internal chunks.
+- `auto`: H1 groups, then H2 and H3 for oversized groups, then safe soft boundaries.
+- `h1`/`h2`/`h3`: navigation boundaries follow headings where present; oversized logical sections still contain internal chunks.
 - `whole`: one logical section over all chunks; `safeForSelection` is measured policy.
 - No headings: auto uses cost boundaries; outline empty; sections retain deterministic titles/count.
 

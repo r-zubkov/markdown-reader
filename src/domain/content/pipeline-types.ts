@@ -1,4 +1,4 @@
-export type SplitStrategy = "auto" | "h1" | "h2" | "whole";
+export type SplitStrategy = "auto" | "h1" | "h2" | "h3" | "whole";
 
 export type PipelineFailureCode = "FILE_TOO_LARGE" | "INVALID_UTF8";
 
