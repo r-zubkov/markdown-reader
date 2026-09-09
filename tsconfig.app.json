@@ -27,7 +27,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "types": ["vite/client", "vitest/globals"]
+    "types": ["vite/client", "vite-plugin-pwa/client", "vitest/globals"]
   },
   "include": ["src"],
   "exclude": ["src/**/*.test.*", "src/test/**", "src/workers/**"]

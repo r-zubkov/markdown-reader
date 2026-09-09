@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router";
 
+import { MobilePlatformSpike } from "@/features/mobile-platform-spike/MobilePlatformSpike";
 import { VirtualReaderSpikeFromLocation } from "@/features/reader-spike/VirtualReaderSpike";
 
 export function App() {
@@ -7,6 +8,7 @@ export function App() {
     <BrowserRouter>
       <Routes>
         <Route element={<BootstrapScreen />} path="/" />
+        <Route element={<MobilePlatformSpike />} path="/spikes/mobile-platform" />
         <Route element={<VirtualReaderSpikeFromLocation />} path="/spikes/virtual-reader" />
       </Routes>
     </BrowserRouter>
