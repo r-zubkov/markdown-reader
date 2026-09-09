@@ -15,6 +15,7 @@ type BrowserStorageConfirmation =
       readonly ok: false;
       readonly step: string;
       readonly code: string;
+      readonly message?: string;
     };
 
 test("confirms atomic commit and Blob recovery in real browser IndexedDB", async ({ page }) => {
@@ -39,6 +40,7 @@ test("confirms atomic commit and Blob recovery in real browser IndexedDB", async
       if (!stageResult.ok) {
         return {
           code: stageResult.error.code,
+          message: stageResult.error.message,
           ok: false,
           step: "stage",
         };
@@ -53,6 +55,7 @@ test("confirms atomic commit and Blob recovery in real browser IndexedDB", async
       if (!appendResult.ok) {
         return {
           code: appendResult.error.code,
+          message: appendResult.error.message,
           ok: false,
           step: "append",
         };
@@ -66,6 +69,7 @@ test("confirms atomic commit and Blob recovery in real browser IndexedDB", async
       if (!commitResult.ok) {
         return {
           code: commitResult.error.code,
+          message: commitResult.error.message,
           ok: false,
           step: "commit",
         };
@@ -75,6 +79,7 @@ test("confirms atomic commit and Blob recovery in real browser IndexedDB", async
       if (!visibleResult.ok) {
         return {
           code: visibleResult.error.code,
+          message: visibleResult.error.message,
           ok: false,
           step: "list",
         };
@@ -86,6 +91,7 @@ test("confirms atomic commit and Blob recovery in real browser IndexedDB", async
       if (!recoveryResult.ok) {
         return {
           code: recoveryResult.error.code,
+          message: recoveryResult.error.message,
           ok: false,
           step: "recovery",
         };
@@ -105,7 +111,9 @@ test("confirms atomic commit and Blob recovery in real browser IndexedDB", async
   });
 
   if (!result.ok) {
-    throw new Error(`Browser storage confirmation failed at ${result.step}: ${result.code}.`);
+    throw new Error(
+      `Browser storage confirmation failed at ${result.step}: ${result.code}: ${result.message ?? "No detail"}.`,
+    );
   }
 
   expect(result.visibleCount).toBe(1);

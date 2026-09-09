@@ -42,7 +42,7 @@ All files under `codex-spec/` must be written in English only. Do not add non-En
 4. Before changes, compare the specification with the real `package.json`, lockfile, code, git diff and completed-task results.
 5. Complete one task, pass its verification and provide the completion report.
 
-The first tasks are complete: [P00-T01-project-bootstrap.md](tasks/P00-T01-project-bootstrap.md), [P00-T02-content-pipeline-spike.md](tasks/P00-T02-content-pipeline-spike.md) and [P00-T03-storage-atomicity-spike.md](tasks/P00-T03-storage-atomicity-spike.md). The next unblocked P00 tasks are `P00-T04`, `P00-T05` and `P00-T06`; the recommended next task is [P00-T04-virtual-reader-spike.md](tasks/P00-T04-virtual-reader-spike.md).
+The completed tasks are [P00-T01-project-bootstrap.md](tasks/P00-T01-project-bootstrap.md), [P00-T02-content-pipeline-spike.md](tasks/P00-T02-content-pipeline-spike.md), [P00-T03-storage-atomicity-spike.md](tasks/P00-T03-storage-atomicity-spike.md) and [P00-T04-virtual-reader-spike.md](tasks/P00-T04-virtual-reader-spike.md). The next unblocked P00 tasks are `P00-T05` and `P00-T06`; the recommended next task is [P00-T05-progress-mapping-spike.md](tasks/P00-T05-progress-mapping-spike.md).
 
 ## Naming
 
@@ -50,4 +50,4 @@ Ordinary documents use meaningful names without ordered prefixes: this navigator
 
 ## Status
 
-Specification set: `COMPLETE - QA PASSED`. Implementation: `P00-T01/P00-T02/P00-T03 COMPLETE - P00 SPIKES CONTINUE`. Completed task IDs: `P00-T01`, `P00-T02`, `P00-T03`. P00-T03 target commands passed verification; pipeline/storage limits remain P00 proposals until production/browser rerun.
+Specification set: `COMPLETE - QA PASSED`. Implementation: `P00-T01/P00-T02/P00-T03/P00-T04 COMPLETE - P00 SPIKES CONTINUE`. Completed task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`. Pipeline/storage/reader limits remain P00 proposals until their required production/browser reruns.

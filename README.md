@@ -61,6 +61,8 @@ Pipeline spike [P00-T02: Content pipeline and limits spike](codex-spec/tasks/P00
 
 Storage spike [P00-T03: IndexedDB atomicity spike](codex-spec/tasks/P00-T03-storage-atomicity-spike.md) завершён: добавлены Dexie prototype schema/repository, fake-IDB integration tests, Chromium IndexedDB confirmation и [storage-atomicity report](docs/benchmarks/storage-atomicity-spike.md). P01-T02 разблокирован для production schema/repository skeleton.
 
+Virtual reader spike [P00-T04: Continuous virtual reader spike](codex-spec/tasks/P00-T04-virtual-reader-spike.md) завершён: Chromium-сценарии для 20 000 блоков проходят. Выбранная конфигурация и измерения находятся в [virtual-reader-spike report](docs/benchmarks/virtual-reader-spike.md).
+
 Проверенная среда:
 
 - Node `>=22.22.0`;
@@ -91,14 +93,15 @@ corepack pnpm test:e2e:list
 - [project-source-of-truth.md](codex-spec/project-source-of-truth.md) — границы продукта и MVP.
 - [implementation-roadmap.md](codex-spec/implementation-roadmap.md) — последовательность вертикальных этапов.
 - [pipeline-spike.md](docs/benchmarks/pipeline-spike.md) — результаты P00-T02 по corpus, security, limits и grammar policy.
+- [virtual-reader-spike.md](docs/benchmarks/virtual-reader-spike.md) — результаты P00-T04 по виртуализации, bounded cache, focus и browser matrix.
 - [tasks/](codex-spec/tasks/) — атомарные задания для реализации по одному.
 
 ## Текущий статус
 
 - Спецификация: `COMPLETE · QA PASSED`.
-- Реализация: `P00-T01/P00-T02/P00-T03 COMPLETE · P00 SPIKES CONTINUE`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`.
-- Следующие разблокированные задачи: `P00-T04`, `P00-T05`, `P00-T06`.
+- Реализация: `P00-T01/P00-T02/P00-T03/P00-T04 COMPLETE · P00 SPIKES CONTINUE`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`.
+- Следующие разблокированные задачи: `P00-T05`, `P00-T06`.
 
 ## Текущая структура репозитория
 
@@ -136,10 +139,14 @@ codex-spec/
 docs/
   benchmarks/
     pipeline-spike.md
+    storage-atomicity-spike.md
+    virtual-reader-spike.md
 src/
   app/
   domain/
     content/
+  features/
+    reader-spike/
   infrastructure/
     db/
   main.tsx
@@ -155,4 +162,4 @@ tools/
 e2e/
 ```
 
-Эта структура отражает bootstrap foundation, P00-T02 pipeline spike и P00-T03 storage atomicity spike. Производственные feature-модули, shadcn primitives и PWA shell добавляются последующими task-файлами.
+Эта структура отражает bootstrap foundation и диагностические P00-T02/P00-T03/P00-T04 spikes. Производственные feature-модули, shadcn primitives и PWA shell добавляются последующими task-файлами.

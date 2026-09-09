@@ -64,12 +64,12 @@ Article semantics must remain coherent despite chunk wrappers; wrappers should b
 - [ ] Restore/far TOC jump reaches target within anchor tolerance without linear scroll.
 - [ ] Late resize/image/theme changes do not create sustained blank gaps or anchor drift above budget.
 - [ ] Focus never disappears because a chunk is unmounted.
-- [ ] Physical iPhone Safari and automated target browsers pass the recorded continuous-reader scenario.
+- [ ] Chromium and responsive mobile-Chromium scenarios pass the recorded continuous-reader matrix.
 - [ ] If candidate fails a gate, sections/manual-window fallback keeps full document readable and roadmap/decision reflect it.
 
 ## Required tests
 
-Virtualizer adapter unit tests, component range/focus tests, large deterministic E2E, far-jump/restore/resize/theme/image tests, performance benchmark and physical iPhone checklist. Avoid snapshots of all generated positions.
+Virtualizer adapter unit tests, component range/focus tests, large deterministic E2E, far-jump/restore/resize/theme/image tests, performance benchmark and responsive mobile-Chromium checklist. Avoid snapshots of all generated positions.
 
 ## Dependencies
 

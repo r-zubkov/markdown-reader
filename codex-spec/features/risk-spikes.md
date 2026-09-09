@@ -75,7 +75,7 @@ Gate: no mapping result is labeled exact if expected semantic block differs beyo
 
 ## Spike E — mobile/platform/UI primitives
 
-**Tasks:** P00-T06. On actual iPhone Safari plus automated WebKit test:
+**Tasks:** P00-T06. In responsive mobile Chromium across the supported viewport matrix:
 
 - import Sheet/Dialog dynamic content, cancel and focus return;
 - TOC Sheet scroll lock, safe area, address-bar/dynamic viewport;
@@ -95,7 +95,7 @@ Gate: no lost focus/background scroll/cut footer/blocking crash in core scenario
 
 ## Tests
 
-Property tests for partition invariants; security corpus; fake-IDB/browser transaction tests; Playwright Chromium/Firefox/WebKit; physical iPhone checklist; benchmark scripts with deterministic seed.
+Property tests for partition invariants; security corpus; fake-IDB/browser transaction tests; Playwright Chromium; responsive mobile-Chromium checklist; benchmark scripts with deterministic seed.
 
 ## Dependencies
 

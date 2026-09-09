@@ -175,4 +175,4 @@ Library row is not one giant button with nested buttons. Title can be link; Cont
 
 ## Compatibility note
 
-Tailwind 4 officially targets Safari 16.4+, Chrome 111+ and Firefox 128+ ([upgrade guide](https://tailwindcss.com/docs/upgrade-guide)). Supporting older browsers would require an explicit decision to change styling baseline, not silent degradation.
+Tailwind 4's broader technical baseline includes other engines, but the MVP support/test commitment is intentionally limited to Chrome 111+ under DEC-022. Firefox and Safari/WebKit behavior is not claimed. Supporting another browser would require an explicit decision, not silent degradation.

@@ -2,7 +2,7 @@
 
 Task: `P00-T02 Content pipeline and limits spike`.
 
-Date: 2026-09-02. Revised: 2026-09-03.
+Date: 2026-09-02. Revised: 2026-09-09.
 
 ## Environment
 
@@ -10,7 +10,7 @@ Date: 2026-09-02. Revised: 2026-09-03.
 - Node: `v24.20.0`.
 - Package manager: `pnpm@11.25.0` through Corepack with `COREPACK_HOME=.corepack`.
 - Test runners: Vitest `4.1.11`; default/security suites use jsdom, bench suite uses Node.
-- Browser memory, browser Long Tasks API and physical iPhone Safari were not measured in this task. Bench evidence below is a worker-compatible wall-time/output proxy and must not be treated as release performance acceptance.
+- Browser memory and the browser Long Tasks API were not measured in this task. Bench evidence below is a worker-compatible wall-time/output proxy and must not be treated as release performance acceptance. DEC-022 later limited the MVP browser matrix to Chrome, automated through Chromium, with mobile Chrome covered through responsive Chromium emulation.
 
 ## Added dependencies
 
@@ -102,7 +102,7 @@ Central proposal: `src/domain/content/pipeline-limits.ts`.
 
 | Limit | Value | Behavior |
 |---|---:|---|
-| `maxFileBytes` | `1_250_000` | Hard reject before decode/hash. Conservative until browser/iPhone memory runs. |
+| `maxFileBytes` | `1_250_000` | Hard reject before decode/hash. Conservative until supported-browser memory runs. |
 | `targetChunkCost` | `8_000` | Soft partition budget between top-level nodes. |
 | `maxChunkCostBeforeFallback` | `24_000` | Section/layout safety budget; oversized sections mark `safeForSelection=false`. |
 | `oversizedNodeCost` | `32_000` | Single top-level node remains intact and gets `OVERSIZED_NODE`. |
@@ -113,7 +113,7 @@ Central proposal: `src/domain/content/pipeline-limits.ts`.
 | `batchMaxChunks` | `8` | Worker/repository batch chunk count proposal. |
 | `batchMaxHtmlBytes` | `64_000` | Worker/repository batch HTML byte proposal; a single larger chunk is allowed as fallback. |
 
-These are not final release thresholds. P02-T01 should rerun production corpus benchmarks. P00-T04/P00-T06 must still determine DOM window, overscan, browser memory and mobile Safari behavior.
+These are not final release thresholds. P02-T01 should rerun production corpus benchmarks. P00-T04 selected the DOM window and overscan; P00-T06 must still validate browser memory and responsive mobile-Chrome behavior in the supported matrix.
 
 ## Grammar recommendation
 

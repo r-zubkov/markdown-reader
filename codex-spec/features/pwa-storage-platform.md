@@ -71,11 +71,11 @@ SW update appears during import; plugin callback uses stale state; offline while
 - [ ] Light/dark/system applies before first paint without visible wrong-theme flash and survives reload.
 - [ ] Remote-image off/offline produces no third-party request; on permits only policy-approved HTTPS/data resources.
 - [ ] Global status priority and Reader anchor compensation are deterministic.
-- [ ] Automated browser matrix plus physical iPhone PWA/Sheet smoke passes.
+- [ ] Chromium plus responsive mobile-Chromium PWA/Sheet smoke passes where platform capabilities apply.
 
 ## Required tests
 
-Preference/storage adapter unit tests; no-flash bootstrap test; SW update controller component tests; production-build Playwright offline/update; network request allowlist assertions; Cache Storage inspection; responsive/two-theme visual and axe checks; physical iPhone install/background/foreground/offline checklist.
+Preference/storage adapter unit tests; no-flash bootstrap test; SW update controller component tests; production-build Playwright offline/update; network request allowlist assertions; Cache Storage inspection; responsive/two-theme visual and axe checks; mobile-Chromium background/foreground/offline checklist.
 
 ## Dependencies
 

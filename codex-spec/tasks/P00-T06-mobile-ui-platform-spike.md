@@ -2,11 +2,11 @@
 
 ## Outcome
 
-The repository has a pinned shadcn React Aria base snapshot and validated Dialog/Sheet/RadioGroup/DropZone/PWA mobile harness, with physical-iPhone findings and fallback decisions.
+The repository has a pinned shadcn React Aria base snapshot and validated Dialog/Sheet/RadioGroup/DropZone/PWA responsive-mobile harness, with supported-browser findings and fallback decisions.
 
 ## Why now
 
-The chosen UI base is recent and mobile Safari/focus behavior affects every overlay and Reader layout.
+The chosen UI base is recent and mobile viewport/focus behavior affects every overlay and Reader layout.
 
 ## Read before starting
 
@@ -26,7 +26,7 @@ P00-T01 complete. Dependencies: P00-T01.
 - Create responsive harness for dynamic Dialog→decision content, full-height Sheet, described RadioGroup with async apply, FileTrigger/DropZone and focus return.
 - Add theme token skeleton/`dvh`/safe-area/scroll-lock behavior sufficient to test.
 - Create minimal production-build PWA/offline/update prompt skeleton only as needed for device lifecycle evidence.
-- Run automated WebKit and physical iPhone scenarios; document gaps and local direct-React-Aria fallback if a primitive fails.
+- Run automated Chromium and responsive mobile-Chromium scenarios; document gaps and local direct-React-Aria fallback if a primitive fails.
 
 ## Non-goals
 
@@ -51,19 +51,19 @@ Idle/running/decision/error overlay samples; TOC-like long Sheet; RadioGroup app
 ## Acceptance criteria
 
 - [ ] Selected primitives pass keyboard/focus/return/scroll-lock contracts or documented local fallback is selected.
-- [ ] 320/390 and iPhone portrait/landscape have no clipped footer/lost close action/background scroll.
+- [ ] 320/390 responsive mobile-Chromium portrait/landscape scenarios have no clipped footer/lost close action/background scroll.
 - [ ] Dialog content replacement does not return focus to body or create nested modal.
 - [ ] Components use one base and committed reproducible configuration.
-- [ ] Physical device procedure/result is recorded, not inferred from WebKit only.
+- [ ] Supported desktop/mobile-emulation environments and limitations are recorded explicitly.
 
 ## Required tests
 
-RTL component focus tests, axe, Playwright responsive/WebKit harness and physical iPhone manual checklist.
+RTL component focus tests, axe and Playwright Chromium responsive-mobile harness.
 
 ## Verification
 
-Run `pnpm typecheck`, `pnpm lint`, targeted component/a11y tests, `pnpm test`, relevant `pnpm test:e2e:all`, `pnpm build`; run/record physical checklist.
+Run `pnpm typecheck`, `pnpm lint`, targeted component/a11y tests, `pnpm test`, relevant `pnpm test:e2e:all`, `pnpm build`; run/record the responsive mobile-Chromium checklist.
 
 ## Completion report
 
-List installed primitives/versions, selected/fallback behavior, automated/physical results, files/commands, gaps and tasks unblocked.
+List installed primitives/versions, selected/fallback behavior, automated responsive results, files/commands, gaps and tasks unblocked.

@@ -26,7 +26,7 @@ Dependencies: none.
 
 - Initialize React + TypeScript via Vite 8.1 line and `pnpm`.
 - Select current stable patches compatible with React Router 8 requirements and Node `>=22.22`; record resolved versions, not guessed patches.
-- Configure strict TS for browser and worker, ESLint including hooks/import boundaries, Vitest + Testing Library + fake IndexedDB, and Playwright Chromium/Firefox/WebKit.
+- Configure strict TS for browser and worker, ESLint including hooks/import boundaries, Vitest + Testing Library + fake IndexedDB, and Playwright Chromium.
 - Create target scripts from `codex-spec/testing-and-quality.md`; a minimal app renders and production build succeeds.
 - Establish only needed top-level source/test directories and aliases consistent with `codex-spec/architecture/system-architecture.md`; add base test setup and a smoke test.
 - Commit lockfile and update the root human-facing README with verified runtime/package-manager requirements and exact install/dev/test/build commands backed by `package.json`.

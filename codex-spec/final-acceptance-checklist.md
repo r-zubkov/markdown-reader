@@ -57,7 +57,7 @@ Fill this with actual links to tests/reports/builds. Do not check an item based 
 - [ ] File/node/chunk/DOM/cache/overscan/anchor limits in code match measured decisions and boundary fixtures.
 - [ ] Import heavy work stays in worker; main-thread/scroll/DOM budgets pass large/pathological corpus.
 - [ ] Continuous reader has no sustained blank gaps/jumps and passes far jump/image/font/theme remeasure.
-- [ ] Chromium/Firefox/WebKit all-browser E2E and physical iPhone Safari checklist pass.
+- [ ] Chromium E2E and responsive mobile-Chromium checklist pass.
 - [ ] Browser support statement respects Tailwind hard floor and records exact release versions.
 
 ## PWA/build/quality

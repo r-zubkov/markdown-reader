@@ -124,7 +124,7 @@
 
 **Success:** Document appears ready; Open Document and Done actions are available. Default policy remains in library (`ASM-002`).
 
-**Acceptance:** keyboard picker and DropZone alternative; cancel/close/worker termination publishes nothing; mobile Safari viewport/focus works; errors provide a concrete next action.
+**Acceptance:** keyboard picker and DropZone alternative; cancel/close/worker termination publishes nothing; responsive mobile-Chrome viewport/focus works; errors provide a concrete next action.
 
 ## O-02 Duplicate/update
 

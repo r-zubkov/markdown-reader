@@ -2,7 +2,7 @@
 
 ## Source Precedence Used
 
-1. Latest explicit user decisions: the product is a web reader for Markdown files, not a specialized long-publication reader; desktop/mobile have equal priority; light/dark themes; technical-editorial direction; execution documentation is English-only.
+1. Latest explicit user decisions: the product is a web reader for Markdown files, not a specialized long-publication reader; desktop/mobile have equal priority; light/dark themes; technical-editorial direction; execution documentation is English-only; Chrome is the only MVP browser commitment, with Firefox, Safari/WebKit and physical iPhone testing outside the matrix.
 2. Security, data integrity and actual platform constraints.
 3. Technical blueprint for implementation.
 4. Product blueprint for behavior/scope.
@@ -77,7 +77,7 @@
 | NFR-003 | Security corpus does not execute scripts/events, create clobbering IDs or leave unsafe URLs/attributes. | SOURCE |
 | NFR-004 | Content/diagnostics are not sent or logged; remote image request is the explicit policy exception. | SOURCE |
 | NFR-005 | Target is WCAG 2.2 AA; automated a11y is supplemented by keyboard, NVDA/VoiceOver, zoom/reflow and physical touch smoke. | SOURCE |
-| NFR-006 | Release tests current stable Chromium/Firefox/WebKit and real iPhone Safari; hard CSS floor is Safari 16.4, Chrome 111, Firefox 128. | VERIFIED + DERIVED |
+| NFR-006 | Release tests current stable Google Chrome through Playwright Chromium; mobile behavior is covered by responsive Chromium/mobile-Chrome emulation. Firefox, Safari, WebKit and physical iPhone testing are outside the MVP matrix. The hard supported floor is Chrome 111. | SOURCE (latest explicit) + VERIFIED |
 | NFR-007 | Source Blob enables rebuild; quota/eviction are explained, but MVP honestly does not promise backup. | SOURCE |
 | NFR-008 | Offline ready documents remain readable; unavailable remote media and update receive separate nonfatal states. | SOURCE |
 | NFR-009 | UI locale is Russian; strings are separated from domain codes; sizes/percentages use `Intl`. | SOURCE |
@@ -105,20 +105,21 @@
 | DEC-005 | Web Worker pipeline, staged Dexie commit and raw Blob recovery. | SOURCE | Streaming/native shell may change boundary after measured limit. |
 | DEC-006 | AST chunks between top-level nodes; no full AST/HTML persistence. | SOURCE | Search/annotations add separate records and do not cancel source Blob. |
 | DEC-007 | Strict sanitizer plus branded HTML boundary plus CSP. | SOURCE | Whitelisted raw HTML requires a separate security review/ADR. |
-| DEC-008 | TanStack Virtual is candidate gated by PoC; fallback is bounded manual window/sections. | SOURCE | P00-T04 finalizes the decision. |
+| DEC-008 | TanStack Virtual with the P00-T04 measured configuration is accepted; fallback is bounded manual window/sections. | SOURCE + VERIFIED | Re-run the P00-T04 benchmark when the adapter/dependency or production chunk shape changes. |
 | DEC-009 | Semantic anchor, not pixel offset. | SOURCE | Mapping algorithm is calibrated in P00-T05. |
 | DEC-010 | IndexedDB is persistent source of truth; no global store. | SOURCE | Sync/collaboration may require a new state layer. |
 | DEC-011 | shadcn React Aria base + Tailwind 4; open-code primitives reviewed locally. | SOURCE (latest) | Failed component/focus PoC may allow local direct React Aria fallback. |
 | DEC-012 | Light/dark/system global preference; no per-document theme. | SOURCE | Per-document personalization is post-MVP. |
 | DEC-013 | Import success remains in library with CTA to open. | ASSUMPTION | Change after usability evidence; does not affect data model. |
 | DEC-014 | Library list, not cover grid; sort by activity plus stable documentId. | SOURCE/DERIVED | Covers/large library may change post-MVP. |
-| DEC-015 | Document/window scroll; TOC persistent only at `>=1120px`. | SOURCE | Virtualization PoC may prove a different scroll root is necessary. |
+| DEC-015 | Document/window scroll; TOC persistent only at `>=1120px`. | SOURCE + VERIFIED | P00-T04 confirmed window scroll in Chromium; revisit only if production profiling fails its budgets. |
 | DEC-016 | Remote HTTPS images default on, disableable; no runtime caching. | DERIVED | Privacy testing may change default before release. |
 | DEC-017 | `generateSW` prompt update; never silent reload during active import. | SOURCE | Complex runtime cache/background work may require `injectManifest`. |
 | DEC-018 | Russian UI, string catalog boundary from the first UI task. | SOURCE | Adding locale support does not change domain errors. |
 | DEC-019 | Release target is a production-oriented MVP after mandatory PoC gates. | ASSUMPTION | User may lower scope to prototype; current specs remain the upper boundary. |
 | DEC-020 | Canonical terminology: product `Markdown Reader`, entities `Document`/`DocumentVersion`, identifier `documentId`, route `/documents/:documentId`. | SOURCE (latest) | Change only together with data schema, routes, repository contracts, UX copy and migration decision. |
 | DEC-021 | `AGENTS.md` and every file under `codex-spec/` are English-only execution documents; exact Russian UI copy belongs in source catalogs or tests when needed. | SOURCE (latest explicit) | Review only if project documentation governance changes. |
+| DEC-022 | Google Chrome is the only browser in the MVP support and release-test commitment, automated through Playwright Chromium. Firefox, Safari, WebKit and physical iPhone testing are explicitly excluded; responsive mobile Chrome remains required through Chromium emulation. | SOURCE (latest explicit) | Adding another browser requires its own compatibility pass and browser/device evidence. |
 
 ## Assumptions Register
 
@@ -154,9 +155,10 @@ There are no blocking user open questions. Numeric thresholds are mandatory PoC 
 
 | ID | Update | Status |
 |---|---|---|
-| DFR-001 | P00-T02 added `src/domain/content/pipeline-limits.ts` and `docs/benchmarks/pipeline-spike.md`: proposal for `maxFileBytes=1_250_000`, chunk cost, oversized-node/code fallback and batch shape confirmed by deterministic corpus/security/bench tests. | Partially closed for content pipeline only. DOM window, overscan, browser memory and anchor tolerance remain for P00-T04/P00-T05/P00-T06. |
+| DFR-001 | P00-T02 proposes `maxFileBytes=1_250_000` plus content-pipeline limits. P00-T04 adds `overscan=8`, cache `96`, mounted budget `48`, stabilized-drift tolerance `96px` and blank-gap tolerance `100ms`; reports live under `docs/benchmarks/`. | Partially closed. Content and virtual-reader proposals are measured; semantic mapping calibration remains P00-T05 and responsive UI/platform evidence remains P00-T06. |
 | DFR-002 | P00-T02 proposes expanded explicit lowlight set: `bash`, `c`, `cpp`, `csharp`, `css`, `diff`, `go`, `graphql`, `ini`, `java`, `javascript`, `json`, `kotlin`, `less`, `lua`, `makefile`, `markdown`, `objectivec`, `perl`, `php`, `plaintext`, `python`, `r`, `ruby`, `rust`, `scss`, `shell`, `sql`, `swift`, `typescript`, `wasm`, `xml`, `yaml`; aliases documented in spike report. Auto-detect remains gated by size/confidence and must not highlight low/medium-confidence unlabeled code. | Proposal until production rerun in P02-T01. |
 | TECH-008/009/010, NFR-002/007 | P00-T03 added Dexie `4.4.5` storage atomicity prototype, fake-IDB integration tests, Chromium IndexedDB Blob confirmation and `docs/benchmarks/storage-atomicity-spike.md`. Staging/append/commit/abort/cleanup/migration/current-version preconditions are proven for spike scope. | Closes storage atomicity spike for P01-T02. `fake-indexeddb` Blob-shape divergence documented; source Blob recovery still requires browser smoke when production schema changes. |
+| PRD-006/010, TECH-011, NFR-001/005/006, DEC-008/015/022 | P00-T04 selects `useWindowVirtualizer`, `overscan=8`, cache `96`, mounted budget `48`, `useFlushSync=false`, direct DOM updates off, 96 px stabilized-drift tolerance and 100 ms blank-gap tolerance. Chromium and responsive mobile-Chromium pass the automated 20,000-chunk scenarios. Details are in `docs/benchmarks/virtual-reader-spike.md`. | Closes the virtual-reader spike and finalizes DEC-008/015 for P01-T04/P03-T02. |
 
 ## Traceability
 

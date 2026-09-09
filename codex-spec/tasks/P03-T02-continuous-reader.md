@@ -54,7 +54,7 @@ First/last/empty, huge node, image/theme/font/resize above viewport, rapid rever
 - [ ] DOM/cache/long-task/jump budgets match P00 report.
 - [ ] Resize/image/theme changes and focus eviction scenarios stay within tolerance.
 - [ ] Safe fallback/corrupt/media error localizes without breaking rest.
-- [ ] Automated target browsers and physical iPhone continuous scenario pass.
+- [ ] Chromium and responsive mobile-Chromium continuous scenarios pass.
 
 ## Required tests
 
@@ -62,7 +62,7 @@ Window/cache/adapter unit/component, real-corpus large E2E, TOC far jump, remeas
 
 ## Verification
 
-Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:bench`, `pnpm test:e2e:all`, `pnpm build`; record physical iPhone result.
+Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:bench`, `pnpm test:e2e:all`, `pnpm build`; record responsive mobile-Chromium results.
 
 ## Completion report
 

@@ -58,11 +58,11 @@ Long duplicate titles, same timestamps, file picker cancellation, late worker ev
 
 ## Required tests
 
-Reducer transition table, component focus/live-region/axe/responsive tests, Chromium import/cancel/errors E2E and WebKit mobile flow.
+Reducer transition table, component focus/live-region/axe/responsive tests, Chromium import/cancel/errors E2E and responsive mobile-Chromium flow.
 
 ## Verification
 
-Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, relevant WebKit suite, `pnpm build`; manual 320/keyboard check.
+Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, relevant mobile-Chromium suite, `pnpm build`; manual 320/keyboard check.
 
 ## Completion report
 

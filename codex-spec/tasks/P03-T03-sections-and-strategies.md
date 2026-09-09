@@ -62,7 +62,7 @@ Layout coverage/property regression, pager/settings components, modeOrigin state
 
 ## Verification
 
-Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, relevant WebKit, `pnpm build`; manual all-strategy/320 check.
+Run `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, relevant mobile-Chromium suite, `pnpm build`; manual all-strategy/320 check.
 
 ## Completion report
 

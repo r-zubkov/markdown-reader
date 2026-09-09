@@ -26,7 +26,7 @@ P00-T01 complete. Dependencies: P00-T01.
 - Prototype document/window-scroll dynamic virtualization and repository-like bounded range/cache.
 - Test restore/far jump, reverse/rapid scroll, late image, font/theme/width/orientation change and focused controls.
 - Compare documented `useFlushSync` settings; evaluate `directDomUpdates` only with evidence; prototype bounded fallback if needed.
-- Record mounted DOM/cache counts, long tasks, blank gaps, jump/anchor drift and target browser/device results.
+- Record mounted DOM/cache counts, long tasks, blank gaps, jump/anchor drift and supported browser/responsive-viewport results.
 - Define acceptance tolerances/config and decision report.
 
 ## Non-goals
@@ -47,7 +47,7 @@ Diagnostic controls may trigger far jump/theme/resize/image load. Include visibl
 
 ## Edge cases
 
-Huge first/last chunk, zero/incorrect estimate, image above viewport, sticky toolbar margin, focused link near eviction, 320 px table/code, iPhone address bar.
+Huge first/last chunk, zero/incorrect estimate, image above viewport, sticky toolbar margin, focused link near eviction, 320 px table/code and mobile browser toolbar/visual viewport changes.
 
 ## Acceptance criteria
 
@@ -55,16 +55,16 @@ Huge first/last chunk, zero/incorrect estimate, image above viewport, sticky too
 - [ ] DOM/cache remain bounded by recorded values.
 - [ ] Far jump and remeasurement preserve target within defined tolerance.
 - [ ] Focus never silently disappears on range change.
-- [ ] Automated target browsers and physical iPhone scenario have recorded results.
+- [ ] Chromium and responsive mobile-Chromium scenarios have recorded results.
 - [ ] Selected implementation/fallback and exact config are justified in decision report.
 
 ## Required tests
 
-Harness component tests, deterministic Playwright scroll/jump/resize/image checks, benchmark script and physical iPhone checklist.
+Harness component tests, deterministic Playwright Chromium scroll/jump/resize/image checks, benchmark script and responsive mobile-Chromium checklist.
 
 ## Verification
 
-Run `pnpm typecheck`, `pnpm lint`, targeted tests, `pnpm test:bench`, `pnpm test:e2e:all`, `pnpm build`; record physical-device steps separately.
+Run `pnpm typecheck`, `pnpm lint`, targeted tests, `pnpm test:bench`, `pnpm test:e2e:all`, `pnpm build`; record responsive mobile-Chromium steps separately.
 
 ## Completion report
 

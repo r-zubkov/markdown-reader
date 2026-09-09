@@ -54,7 +54,7 @@ Update during import/finalize, old/new tabs, offline update click, nested base p
 - [ ] Cache Storage contains app assets only; source/chunks remain IDB.
 - [ ] Update requires user action, waits for active import, flushes progress and reloads once.
 - [ ] Failure/offline keeps current version usable; no loop/silent reload.
-- [ ] Production Chromium/WebKit PWA tests and manual device smoke pass where supported.
+- [ ] Production Chromium PWA and offline-shell checks pass.
 
 ## Required tests
 

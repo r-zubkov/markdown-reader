@@ -24,11 +24,11 @@ Task files are authoritative for scope/verification. This roadmap is authoritati
 | P00-T03 | IndexedDB atomicity/migration spike | After T01; parallel |
 | P00-T04 | Continuous virtual-reader spike | After T01; parallel |
 | P00-T05 | Semantic mapping spike and confidence policy | After T02 |
-| P00-T06 | shadcn/React Aria + mobile Safari/PWA primitive spike | After T01; parallel |
+| P00-T06 | shadcn/React Aria + responsive mobile/PWA primitive spike | After T01; parallel |
 
 **Gate:** all reports/fixtures committed; spikes 1/3/5 pass or fallback/roadmap explicitly changed; `pnpm typecheck/lint/test/build` green. Status may move from `Requires PoC` only after this gate.
 
-**Risks closed:** invented thresholds, unsafe pipeline, non-atomic model, unusable Safari virtualization/focus.
+**Risks closed:** invented thresholds, unsafe pipeline, non-atomic model, unusable responsive-mobile virtualization/focus.
 
 ## P01 — Minimal end-to-end walking skeleton
 

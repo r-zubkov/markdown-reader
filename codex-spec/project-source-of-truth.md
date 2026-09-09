@@ -57,7 +57,7 @@ Backend, accounts, cloud sync, cross-device transfer, server analytics, search i
 
 - Storage is origin-scoped, with quota/eviction controlled by the browser; the user must retain the original file. MVP does not promise backup.
 - Maximum file size, chunk cost, DOM window, overscan, supported highlight grammars and anchor tolerance are fixed only after PoC.
-- Tailwind CSS 4 sets the technical browser floor at Safari 16.4+, Chrome 111+ and Firefox 128+; the release target is current stable desktop Chromium/Firefox/Safari and mobile Safari/Chrome while respecting that floor.
+- The MVP support and release-test matrix is current stable Google Chrome, automated through Playwright Chromium, plus responsive mobile-Chrome behavior through Chromium emulation. Firefox, Safari, WebKit and iOS Safari are explicitly outside the MVP support/test commitment. The hard supported-browser floor is Chrome 111+.
 - First visit without network is not supported. After successful installation, the app shell works offline.
 
 ## Glossary

@@ -16,7 +16,7 @@ These are greenfield target scripts that P00-T01 must create. After bootstrap, a
 | `pnpm test:security` | Malicious Markdown/URL/sanitizer corpus |
 | `pnpm test:bench` | Deterministic spike/performance regression scripts; not default unit suite |
 | `pnpm test:e2e` | Fast Chromium MVP E2E |
-| `pnpm test:e2e:all` | Playwright Chromium/Firefox/WebKit release matrix |
+| `pnpm test:e2e:all` | Playwright Chromium release suite |
 | `pnpm build` | Production Vite/PWA build and type-safe assets |
 | `pnpm preview` | Local production-build manual/PWA smoke |
 
@@ -54,7 +54,7 @@ If a tool requires a different exact invocation, bootstrap updates this file and
 - Production-like browser IndexedDB/File/Worker/router behavior.
 - PWA/offline/update tests use production build in isolated origin/profile and clean service-worker state.
 - Each test owns/cleans its test database; no global site-data clear command in application code.
-- WebKit automation is necessary but does not replace physical iPhone checklist.
+- Responsive Chromium coverage includes mobile-Chrome viewport, touch-target and reflow scenarios; it does not imply Safari/iOS support.
 
 ## Risk matrix
 
@@ -63,7 +63,7 @@ If a tool requires a different exact invocation, bootstrap updates this file and
 | Pipeline/content loss | corpus + property + worker | malformed, no headings, huge node, repeated headings, footnotes |
 | XSS/URL/privacy | security corpus + parsed DOM + network assertions | scripts/events/style/clobbering/encoded protocol/SVG data/remote off |
 | Atomic storage | repository integration + browser | quota, cancel, crash, reload, missing/duplicate batch, migration, conflict |
-| Continuous reader | component + E2E + benchmark + iPhone | 20k variable chunks, reverse/far jump, image/font/theme resize, focus |
+| Continuous reader | component + E2E + benchmark + responsive mobile Chromium | 20k variable chunks, reverse/far jump, image/font/theme resize, focus |
 | Position mapping | corpus unit + E2E | mode/strategy, small update, moved heading, radical update |
 | Lifecycle | integration/E2E | exact duplicate, multiple candidates, replace fail, cleanup fail, delete fail |
 | PWA/platform | production E2E + device | offline, update during import, old/new tab, background/pagehide |
@@ -92,19 +92,17 @@ F00 defines canonical corpus. Store generated sources or generators, expected ma
 
 Release tier:
 
-- current stable desktop Chromium/Chrome/Edge behavior via Chromium;
-- current stable Firefox;
-- current stable Safari behavior via Playwright WebKit plus manual macOS Safari smoke when available;
-- current stable mobile Chrome Android smoke;
-- physical iPhone Safari core checklist.
+- current stable Google Chrome behavior via Playwright Chromium;
+- current stable mobile Chrome behavior through Chromium device/viewport emulation;
+- optional physical Android smoke when a device is available; it is not a release gate.
 
-Hard CSS floor: Safari 16.4+, Chrome 111+, Firefox 128+. Exact release versions/date/device are recorded in acceptance report. No claim that WebKit automation equals iOS Safari.
+Hard supported-browser floor: Chrome 111+. Exact release versions/date/emulated devices are recorded in the acceptance report. Firefox, Safari, WebKit and iOS are not claimed or release-tested in MVP.
 
 ## Accessibility checks
 
 - Automated axe on L-01 ready/empty/error; O-01/O-02/O-03/O-04; R-01 continuous/sections/error; both themes where relevant.
 - Keyboard-only import, continue, TOC, settings, pager, replace and delete.
-- NVDA with Firefox or Chrome; VoiceOver Safari macOS and physical iPhone for Sheet/Reader/Pager.
+- NVDA with Chrome; semantic keyboard/screen-reader checks for Sheet/Reader/Pager.
 - Focus not hidden by sticky toolbar; no focus loss on virtual unmount/delete/state replacement.
 - Zoom 200/400%, 320 px reflow, text-spacing override, forced colors and reduced motion.
 - Dynamic announcements sampled for duplication/spam; scroll progress silent.
@@ -133,15 +131,15 @@ Accepted values are centralized in `PipelineLimits`/reader config and documented
 3. Close/reload; confirm position. Go offline; reopen and read; remote image placeholder.
 4. Exact duplicate; changed replace with mapping notice; separate import; delete cancel/success.
 5. Trigger update while import running, then apply after completion.
-6. Keyboard path and 320 px/iPhone path; inspect focus/status.
+6. Keyboard path and 320/390 px mobile-Chrome emulation; inspect focus/status.
 
 ## Definition of Done
 
 A task is done only when its AC and required tests pass and completion report lists evidence. A phase is done only when every task/dependency is complete and gate checks are green. MVP release requires:
 
-- `typecheck`, `lint`, unit/integration, security, all-browser E2E and build green;
+- `typecheck`, `lint`, unit/integration, security, Chromium E2E and build green;
 - F00 mandatory spikes and current benchmark report;
-- physical iPhone/core accessibility manual records;
+- Chromium desktop and responsive mobile-Chromium accessibility records;
 - no known content-loss, XSS, partial-publication, unrecoverable migration or blocking reader defect;
 - final checklist completed with every waiver explicitly approved, scoped and linked.
 

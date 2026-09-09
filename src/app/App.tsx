@@ -1,10 +1,13 @@
 import { BrowserRouter, Route, Routes } from "react-router";
 
+import { VirtualReaderSpikeFromLocation } from "@/features/reader-spike/VirtualReaderSpike";
+
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<BootstrapScreen />} path="/" />
+        <Route element={<VirtualReaderSpikeFromLocation />} path="/spikes/virtual-reader" />
       </Routes>
     </BrowserRouter>
   );

@@ -2,7 +2,7 @@
 
 ## Outcome
 
-The integrated MVP passes current security corpus, accessibility/responsive matrix, all-browser E2E and measured performance budgets with deployment CSP/headers aligned to runtime.
+The integrated MVP passes the current security corpus, accessibility/responsive matrix, Chromium E2E and measured performance budgets with deployment CSP/headers aligned to runtime.
 
 ## Why now
 
@@ -23,10 +23,10 @@ P05-T01/T02/T03, P02-T01, P04-T02/T03 complete. Dependencies: P05-T01, P05-T02, 
 ## Scope
 
 - Run/fix full malicious corpus, CSP/header and network/log/privacy audits.
-- Run/fix type/lint/unit/integration/security and all-browser E2E matrix.
+- Run/fix type/lint/unit/integration/security and Chromium E2E suite.
 - Run/fix large/pathological performance regression against approved limits.
 - Complete 320/390/768/1024/1120/1440, zoom/text-spacing/forced-colors/reduced-motion and both-theme visual checks.
-- Complete keyboard, axe, NVDA/VoiceOver and physical iPhone core checklist; record exact environment.
+- Complete keyboard, axe and NVDA core checklist across Chromium and responsive mobile Chromium; record exact environment.
 - Resolve flaky required tests and document deployment requirements/residual nonblocking issues.
 
 ## Non-goals
@@ -47,7 +47,7 @@ Every required L/R/O/G/E state in light/dark and relevant widths; validate statu
 
 ## Edge cases
 
-Combined update+offline+quota, replace during old SW, theme/remote toggle mid-scroll, corrupt staging on startup, physical Safari background/foreground, multiple titles/large TOC.
+Combined update+offline+quota, replace during old SW, theme/remote toggle mid-scroll, corrupt staging on startup, mobile-Chromium background/foreground, multiple titles/large TOC.
 
 ## Acceptance criteria
 
