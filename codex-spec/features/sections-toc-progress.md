@@ -47,7 +47,7 @@ On first open/default ReaderState:
 
 Priority on entry: valid explicit hash → saved anchor for current version → mapped anchor from replace/reprocess result → start.
 
-Resolution order within same version: `blockId` → heading path + block ordinal → nearest heading → overall source ratio → start. Cross-version mapping follows F05 and F00 measured algorithm. Result always includes `confidence` and reason.
+Resolution order within same version: `blockId` → heading path + block ordinal → nearest heading → overall source ratio → start. Cross-version mapping follows F05 and the P00-T05 measured fingerprint/path/ancestor/qualified-ratio algorithm. Result always includes `confidence` and a stable reason code. Exact means zero expected-block distance; approximate allows at most one meaningful block and requires the notice.
 
 UI:
 

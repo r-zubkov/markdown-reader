@@ -106,7 +106,7 @@
 | DEC-006 | AST chunks between top-level nodes; no full AST/HTML persistence. | SOURCE | Search/annotations add separate records and do not cancel source Blob. |
 | DEC-007 | Strict sanitizer plus branded HTML boundary plus CSP. | SOURCE | Whitelisted raw HTML requires a separate security review/ADR. |
 | DEC-008 | TanStack Virtual with the P00-T04 measured configuration is accepted; fallback is bounded manual window/sections. | SOURCE + VERIFIED | Re-run the P00-T04 benchmark when the adapter/dependency or production chunk shape changes. |
-| DEC-009 | Semantic anchor, not pixel offset. | SOURCE | Mapping algorithm is calibrated in P00-T05. |
+| DEC-009 | Semantic anchor, not pixel offset. P00-T05 accepts only stable same-version identity or a SHA-256 block fingerprint unique in both versions as exact; path/ancestor/qualified-ratio fallbacks are approximate. | SOURCE + VERIFIED | Recalibrate the `0.20` structural-similarity gate against the production update corpus in P03-T04/P04-T02. |
 | DEC-010 | IndexedDB is persistent source of truth; no global store. | SOURCE | Sync/collaboration may require a new state layer. |
 | DEC-011 | shadcn React Aria base + Tailwind 4; open-code primitives reviewed locally. | SOURCE (latest) | Failed component/focus PoC may allow local direct React Aria fallback. |
 | DEC-012 | Light/dark/system global preference; no per-document theme. | SOURCE | Per-document personalization is post-MVP. |
@@ -155,10 +155,11 @@ There are no blocking user open questions. Numeric thresholds are mandatory PoC 
 
 | ID | Update | Status |
 |---|---|---|
-| DFR-001 | P00-T02 proposes `maxFileBytes=1_250_000` plus content-pipeline limits. P00-T04 adds `overscan=8`, cache `96`, mounted budget `48`, stabilized-drift tolerance `96px` and blank-gap tolerance `100ms`; reports live under `docs/benchmarks/`. | Partially closed. Content and virtual-reader proposals are measured; semantic mapping calibration remains P00-T05 and responsive UI/platform evidence remains P00-T06. |
+| DFR-001 | P00-T02 proposes `maxFileBytes=1_250_000` plus content-pipeline limits. P00-T04 adds `overscan=8`, cache `96`, mounted budget `48`, stabilized-drift tolerance `96px` and blank-gap tolerance `100ms`. P00-T05 adds zero-block exact tolerance, at-most-one-block approximate corpus tolerance and the `0.20` structural-similarity gate; reports live under `docs/benchmarks/`. | Partially closed. Content, virtual-reader and semantic-mapping proposals are measured; responsive UI/platform evidence remains P00-T06, and production tasks must rerun their applicable proposals. |
 | DFR-002 | P00-T02 proposes expanded explicit lowlight set: `bash`, `c`, `cpp`, `csharp`, `css`, `diff`, `go`, `graphql`, `ini`, `java`, `javascript`, `json`, `kotlin`, `less`, `lua`, `makefile`, `markdown`, `objectivec`, `perl`, `php`, `plaintext`, `python`, `r`, `ruby`, `rust`, `scss`, `shell`, `sql`, `swift`, `typescript`, `wasm`, `xml`, `yaml`; aliases documented in spike report. Auto-detect remains gated by size/confidence and must not highlight low/medium-confidence unlabeled code. | Proposal until production rerun in P02-T01. |
 | TECH-008/009/010, NFR-002/007 | P00-T03 added Dexie `4.4.5` storage atomicity prototype, fake-IDB integration tests, Chromium IndexedDB Blob confirmation and `docs/benchmarks/storage-atomicity-spike.md`. Staging/append/commit/abort/cleanup/migration/current-version preconditions are proven for spike scope. | Closes storage atomicity spike for P01-T02. `fake-indexeddb` Blob-shape divergence documented; source Blob recovery still requires browser smoke when production schema changes. |
 | PRD-006/010, TECH-011, NFR-001/005/006, DEC-008/015/022 | P00-T04 selects `useWindowVirtualizer`, `overscan=8`, cache `96`, mounted budget `48`, `useFlushSync=false`, direct DOM updates off, 96 px stabilized-drift tolerance and 100 ms blank-gap tolerance. Chromium and responsive mobile-Chromium pass the automated 20,000-chunk scenarios. Details are in `docs/benchmarks/virtual-reader-spike.md`. | Closes the virtual-reader spike and finalizes DEC-008/015 for P01-T04/P03-T02. |
+| PRD-011/013, TECH-010, DEC-009 | P00-T05 adds deterministic same/cross-version mapping reason codes, a unique SHA-256 block fingerprint exactness rule, ratio/range/determinism properties and exact/approximate/none UI triggers. `PIPELINE_VERSION` is `3` because persisted block anchors gained `contentFingerprint`. Details are in `docs/benchmarks/progress-mapping-spike.md`. | Closes the semantic mapping spike for P03-T03/P03-T04/P04-T02; production repository validation and replacement UI remain in their scheduled tasks. |
 
 ## Traceability
 
@@ -176,7 +177,7 @@ There are no blocking user open questions. Numeric thresholds are mandatory PoC 
 | PRD-008 | F04, `codex-spec/architecture/data-and-state.md` | P00-T02, P03-T03 | Measured threshold; modeOrigin auto/user tests |
 | PRD-010, TECH-007 | F02 | P00-T02, P02-T01 | Property tests: no loss/duplication/reorder/split-node |
 | PRD-011, TECH-012 | F04, `codex-spec/architecture/data-and-state.md` | P00-T05, P03-T04 | Reload/mode/strategy anchor tolerance tests |
-| PRD-012, PRD-013 | F05 | P02-T03, P04-T02 | Exact duplicate and replace/separate/cancel E2E |
+| PRD-012, PRD-013 | F05 | P00-T05, P02-T03, P04-T02 | Exact duplicate and replace/separate/cancel E2E plus update-pair confidence corpus |
 | PRD-014, UX-004 | F05, `codex-spec/design/screens-and-user-flows.md` | P04-T01 | Confirm/delete transaction/focus/error tests |
 | PRD-015, TECH-015, NFR-008 | F06 | P05-T02 | Installed offline E2E and update gating |
 | PRD-016, TECH-014 | `codex-spec/design/ui-design-system.md`, F06 | P05-T01 | No-flash theme; two-theme visual/a11y checks |
@@ -186,7 +187,7 @@ There are no blocking user open questions. Numeric thresholds are mandatory PoC 
 | TECH-005, NFR-003, NFR-004 | F02, `codex-spec/architecture/system-architecture.md` | P00-T02, P02-T01, P05-T04 | Malicious corpus + CSP + network/log audit |
 | UX-003, UX-006 | `codex-spec/design/screens-and-user-flows.md`, F01 | P02-T02, P05-T03 | State-machine component tests; actionable errors |
 | UX-005, UX-007, NFR-005 | `codex-spec/design/ui-design-system.md`, `codex-spec/design/screens-and-user-flows.md` | P00-T06, P03-T04, P05-T01, P05-T04 | 320/zoom/keyboard/NVDA/VoiceOver/axe matrix |
-| NFR-001, NFR-006 | F00, `codex-spec/testing-and-quality.md` | P00-T02, P00-T04, P00-T06 | Stored benchmark report and browser/device gate |
+| NFR-001, NFR-006 | F00, `codex-spec/testing-and-quality.md` | P00-T02, P00-T04, P00-T05, P00-T06 | Stored benchmark reports and browser/device gate |
 | NFR-002, NFR-007 | F01, F06, `codex-spec/architecture/data-and-state.md` | P00-T03, P05-T03 | Termination/quota/reprocess recovery tests |
 | NFR-009 | `codex-spec/design/ui-design-system.md`, `codex-spec/design/screens-and-user-flows.md` | P01-T01, P05-T01 | String catalog/Intl/long-Russian-copy checks |
 | NFR-010 | `codex-spec/testing-and-quality.md`, `codex-spec/implementation-roadmap.md`, tasks | P05-T05 | All required commands green; final checklist signed |

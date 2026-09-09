@@ -101,6 +101,7 @@ export function createStorageChunks(
         {
           blockId: `block-${String(ordinal)}`,
           blockOrdinalWithinHeading: ordinal,
+          contentFingerprint: ordinal.toString(16).padStart(64, "0"),
           headingPathKey: "1:storage-spike[1]",
           sourceEnd,
           sourceStart,

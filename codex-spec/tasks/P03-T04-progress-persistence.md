@@ -38,7 +38,7 @@ Location controller/observer/mapper integration, ReaderState repository methods,
 
 ## Implementation notes
 
-Use fake clock/observer tests. Pixel metrics are observation inputs, not persisted canonical location. Hash precedence remains P03-T01. Avoid announcing percentage. Define 100% policy via measured semantic rule.
+Use fake clock/observer tests. Pixel metrics are observation inputs, not persisted canonical location. Hash precedence remains P03-T01. Avoid announcing percentage. Define 100% policy via measured semantic rule. Reuse the P00-T05 reason/confidence matrix and its zero-block exact tolerance; do not create a second mapper or label a ratio-only result exact.
 
 ## UI and states
 

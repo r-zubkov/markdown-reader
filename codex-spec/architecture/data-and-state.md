@@ -99,6 +99,7 @@ interface PersistedChunk {
 
 interface BlockAnchor {
   blockId: string;             // stable within version
+  contentFingerprint: string;  // SHA-256 of block type + normalized-line-ending source
   headingPathKey: string;
   blockOrdinalWithinHeading: number;
   sourceStart: number;
@@ -112,6 +113,24 @@ interface SemanticAnchor {
   blockId: string;
   intraBlockRatio: number;
   overallSourceRatio: number;
+}
+
+type MappingReasonCode =
+  | 'SAME_VERSION_BLOCK_ID'
+  | 'SAME_VERSION_PATH_ORDINAL'
+  | 'SAME_VERSION_NEAREST_HEADING'
+  | 'CROSS_VERSION_CONTENT_FINGERPRINT'
+  | 'CROSS_VERSION_PATH_ORDINAL'
+  | 'CROSS_VERSION_ANCESTOR_ORDINAL'
+  | 'OVERALL_SOURCE_RATIO'
+  | 'NO_RELIABLE_MATCH'
+  | 'TARGET_EMPTY';
+
+interface MappingResult {
+  confidence: RestoreConfidence;
+  reason: MappingReasonCode;
+  structuralSimilarity: number;
+  anchor?: SemanticAnchor;
 }
 
 interface ReaderState {
@@ -217,6 +236,7 @@ No document/progress data is stored in `localStorage`.
 - Heading slug is built from normalized visible text; ID format is `mdr-h-{slug-or-heading}-{occurrence}`. Occurrence is counted in document order.
 - `pathKey` includes ancestry levels/text occurrence, for example `1:introduction[1]/2:setup[2]`; it contains no raw HTML.
 - Block ID is stable within a version: hash/ordinal from normalized block type plus source range; cross-version mapping does not rely on it alone.
+- Content fingerprint is lowercase SHA-256 over block type, a zero separator and exact block source after CRLF/CR line-ending normalization. It is derived data, never identity for the document, and is exact cross-version evidence only when unique in both source and target versions.
 - Chunk ordinal is contiguous `0..chunkCount-1`; commit rejects gaps/duplicates/overlap/out-of-order source ranges.
 - Layout ranges must be valid, ordered, non-overlapping and cover chunks according to strategy; property tests prove coverage.
 
@@ -270,8 +290,9 @@ One transaction deletes ReaderState, all chunks for all document versions, versi
 - Observer selects top visible meaningful block relative to sticky toolbar.
 - `intraBlockRatio` estimates progress within that block; `overallSourceRatio` is fallback and library percentage source.
 - Writes are trailing-throttled; exact interval is performance implementation detail measured in P03-T04. Explicit TOC/mode/route actions flush immediately.
-- Mapping order on mode/strategy: same block → same heading path + ordinal → nearest heading → source ratio → start.
-- Mapping across version: normalized path with occurrence → nearest matching ancestor/block ordinal → source ratio. Result returns confidence and reason.
+- Mapping order on mode/strategy: same block → same heading path + ordinal → nearest heading → source ratio → start. Same block and same-version path/ordinal are exact; later fallbacks are approximate.
+- Mapping across versions: unique source/target content fingerprint → normalized full path + ordinal → nearest matching non-root ancestor + relative subtree ordinal → source ratio only when structural similarity is at least `0.20` → start. Structural similarity is the Dice coefficient over unique fingerprints and non-root heading paths. Only the unique-fingerprint result is exact; path/ancestor/ratio results are approximate; start/empty results are none.
+- Exact tolerance is zero meaningful-block distance. Approximate corpus tolerance is at most one meaningful block and always triggers the restore notice. None persists progress zero at target start, or no anchor for an empty target. All ratios are clamped to `[0,1]`.
 - `none` opens start and visible notice; `approximate` shows dismissible notice. Confidence never inferred silently in UI.
 
 ## Quota, corruption, limits

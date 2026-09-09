@@ -129,6 +129,14 @@ describe("Markdown pipeline spike", () => {
     expect(first.chunks.map((chunk) => chunk.html)).toEqual(
       second.chunks.map((chunk) => chunk.html),
     );
+    expect(first.chunks.map((chunk) => chunk.blockAnchors)).toEqual(
+      second.chunks.map((chunk) => chunk.blockAnchors),
+    );
+    expect(
+      first.chunks
+        .flatMap((chunk) => chunk.blockAnchors)
+        .every((anchor) => /^[a-f0-9]{64}$/u.test(anchor.contentFingerprint)),
+    ).toBe(true);
   });
 
   it("covers all chunks in every layout and keeps whole as a logical section", async () => {

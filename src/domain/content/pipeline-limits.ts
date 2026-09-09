@@ -1,6 +1,6 @@
 import type { PipelineLimits } from "./pipeline-types";
 
-export const PIPELINE_VERSION = 2;
+export const PIPELINE_VERSION = 3;
 
 export const HEADING_ID_PREFIX = "mdr-h-";
 export const FOOTNOTE_ID_PREFIX = "mdr-fn-";

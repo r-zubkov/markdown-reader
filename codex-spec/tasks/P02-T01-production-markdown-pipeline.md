@@ -10,7 +10,7 @@ The walking pipeline must become complete and security-reviewed before Reader/li
 
 ## Read before starting
 
-`AGENTS.md`; `codex-spec/features/markdown-pipeline.md`; `codex-spec/architecture/data-and-state.md` IDs/output; `codex-spec/architecture/system-architecture.md` worker/security; P00-T02 report.
+`AGENTS.md`; `codex-spec/features/markdown-pipeline.md`; `codex-spec/architecture/data-and-state.md` IDs/output; `codex-spec/architecture/system-architecture.md` worker/security; P00-T02 report; P00-T05 report for the block-fingerprint contract.
 
 ## Related requirements
 
@@ -24,7 +24,7 @@ P01-T03 and P00-T02 complete; DFR-001/002 pipeline decisions recorded. Dependenc
 
 - Promote/refactor validated spike pipeline into production domain/worker modules without React/Dexie dependencies.
 - Implement all steps/order/policies and Russian footnote accessibility labels.
-- Generate title, outline, deterministic IDs/path keys/block anchors, all strategy layouts and bounded batches.
+- Generate title, outline, deterministic IDs/path keys/block anchors including the required SHA-256 `contentFingerprint`, all strategy layouts and bounded batches.
 - Implement limited grammars/alias/autodetect and oversized/failure fallback per measured policy.
 - Centralize `PipelineLimits`, `PIPELINE_VERSION`, warnings and stable errors; repository persists validated outputs.
 - Add security/no-loss/determinism/boundary performance regression suites.
@@ -39,7 +39,7 @@ No Reader rendering/TOC UI, search, raw executable HTML, additional Markdown dia
 
 ## Implementation notes
 
-Sanitize after highlight and before serialize. Brand remains repository concern after persistence. Avoid post-sanitize mutations. Do not pass full AST to main or persist it. Pipeline bump requires rebuild path tests.
+Sanitize after highlight and before serialize. Brand remains repository concern after persistence. Avoid post-sanitize mutations. Do not pass full AST to main or persist it. Preserve the P00-T05 pipeline-v3 fingerprint contract; any later pipeline bump requires rebuild path tests.
 
 ## UI and states
 

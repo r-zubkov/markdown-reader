@@ -41,7 +41,7 @@ If another tab/version changed pointer, return `COMMIT_CONFLICT`; never overwrit
 
 ## Mapping result
 
-Preserve user reading mode/strategy and `modeOrigin` when valid. Anchor mapping uses F00/F04 algorithm. If `exact`, update versionId/block. If `approximate`, persist fallback and show notice before/inside Reader. If `none`, progress becomes start and notice is mandatory. Do not carry a raw old blockId as if valid.
+Preserve user reading mode/strategy and `modeOrigin` when valid. Anchor mapping uses the F00/F04 algorithm: unique source/target SHA-256 block fingerprint is the only cross-version exact path; full path/ordinal, surviving ancestor and qualified source-ratio results are approximate. If `exact`, update versionId/block. If `approximate`, persist fallback and show notice before/inside Reader. If `none`, progress becomes start and notice is mandatory. Do not carry a raw old blockId as if valid.
 
 ## Delete
 

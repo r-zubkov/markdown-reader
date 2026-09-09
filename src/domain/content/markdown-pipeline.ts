@@ -187,7 +187,12 @@ export async function runMarkdownPipeline(
   const rawSafeMdast = neutralizeRawHtml(mdast, warningCounter);
   annotateImageProperties(rawSafeMdast);
   const nonRenderingDefinitions = collectNonRenderingDefinitions(rawSafeMdast);
-  const blocks = buildTopLevelBlocks(rawSafeMdast, decoded.value, headingRecords, limits);
+  const blocks = await buildTopLevelBlocks(
+    rawSafeMdast,
+    decoded.value,
+    headingRecords,
+    limits,
+  );
   const metadataMs = performanceNow() - metadataStartedAt;
   const partitionStartedAt = performanceNow();
   const chunkPlans = partitionBlocks(blocks, limits);
@@ -441,12 +446,12 @@ function buildOutline(records: readonly HeadingRecord[]): readonly OutlineItem[]
   }));
 }
 
-function buildTopLevelBlocks(
+async function buildTopLevelBlocks(
   root: MdastRoot,
   source: string,
   headingRecords: readonly HeadingRecord[],
   limits: PipelineLimits,
-): readonly TopLevelBlock[] {
+): Promise<readonly TopLevelBlock[]> {
   const headingByStart = new Map<number, HeadingRecord>();
 
   for (const heading of headingRecords) {
@@ -461,6 +466,10 @@ function buildTopLevelBlocks(
     const sourceStart = positionStart(node);
     const sourceEnd = positionEnd(node, source.length);
     const firstHeading = headingByStart.get(sourceStart);
+    const contentFingerprint = await createBlockContentFingerprint(
+      node.type,
+      source.slice(sourceStart, sourceEnd),
+    );
 
     if (firstHeading !== undefined) {
       activeHeadingPath = firstHeading.pathKey;
@@ -471,6 +480,7 @@ function buildTopLevelBlocks(
     const headingIds = collectHeadingIds(node);
     const blockAnchor: BlockAnchor = {
       blockId: createBlockId(node.type, ordinal, sourceStart, sourceEnd),
+      contentFingerprint,
       headingPathKey: activeHeadingPath,
       blockOrdinalWithinHeading,
       sourceStart,
@@ -493,6 +503,14 @@ function buildTopLevelBlocks(
   }
 
   return blocks;
+}
+
+async function createBlockContentFingerprint(
+  type: string,
+  source: string,
+): Promise<string> {
+  const normalizedLineEndings = source.replace(/\r\n?/gu, "\n");
+  return sha256Hex(new TextEncoder().encode(`${type}\u0000${normalizedLineEndings}`));
 }
 
 function partitionBlocks(

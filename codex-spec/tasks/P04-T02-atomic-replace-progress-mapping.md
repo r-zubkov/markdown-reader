@@ -38,7 +38,7 @@ Replace use case/repository transaction/cleanup, mapping adapter/result UI/strin
 
 ## Implementation notes
 
-Old ready source/chunks remain until commit. Cleanup failure is diagnostic/retry, not rollback of successful current pointer. Never persist old version-specific blockId unchanged. Commit conflict requires refreshed review.
+Old ready source/chunks remain until commit. Cleanup failure is diagnostic/retry, not rollback of successful current pointer. Never persist old version-specific blockId unchanged. Commit conflict requires refreshed review. Reuse P00-T05 reason codes and require validated pipeline-v3 `contentFingerprint` metadata for cross-version exactness; an older derived version must rebuild from its source Blob rather than silently weaken confidence.
 
 ## UI and states
 

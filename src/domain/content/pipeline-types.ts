@@ -69,6 +69,7 @@ export interface SectionRef {
 
 export interface BlockAnchor {
   readonly blockId: string;
+  readonly contentFingerprint: string;
   readonly headingPathKey: string;
   readonly blockOrdinalWithinHeading: number;
   readonly sourceStart: number;

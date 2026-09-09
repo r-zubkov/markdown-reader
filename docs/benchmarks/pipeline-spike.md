@@ -125,6 +125,8 @@ Aliases currently normalized: `js/jsx/mjs/cjs -> javascript`, `ts/tsx -> typescr
 
 Revision on 2026-09-03: `P00_PIPELINE_LIMITS` was renamed to `PIPELINE_LIMITS` because the old task-prefixed name leaked spike bookkeeping into normal code. `PIPELINE_VERSION` was bumped to `2` because the explicit highlight grammar policy changed.
 
+Revision on 2026-09-09: P00-T05 added a required lowercase SHA-256 `contentFingerprint` to every `BlockAnchor`, computed from block type plus normalized-line-ending exact source. This derived-data contract change bumped `PIPELINE_VERSION` to `3`. The pipeline/security/storage/build regression passed; a visible deterministic rerun measured 22.94 ms for `small`, 45.38 ms for `medium` and 174.20 ms for `large`. Cross-version mapping evidence and the reason for this field are recorded in `docs/benchmarks/progress-mapping-spike.md`.
+
 Recommendation for DFR-002: ship explicit-label highlighting first. Keep auto-detect behind `maxAutoDetectChars` and `autoDetectMinRelevance`, and treat it as rejected for unlabeled low/medium-confidence samples until a larger real-world corpus proves otherwise.
 
 ## Acceptance evidence
@@ -137,10 +139,10 @@ Recommendation for DFR-002: ship explicit-label highlighting first. Keep auto-de
 
 ## DFR updates
 
-- `DFR-001`: partially informed by this task for file bytes, chunk cost, oversized-node/code fallback and batch shape. Still deferred for DOM window, overscan, browser memory and anchor tolerance until P00-T04/P00-T05/P00-T06.
+- `DFR-001`: partially informed by this task for file bytes, chunk cost, oversized-node/code fallback and batch shape. P00-T04 and P00-T05 have since supplied DOM/window and anchor-tolerance proposals; browser memory/responsive platform evidence remains P00-T06.
 - `DFR-002`: initial grammar set and auto-detect policy are now proposed. Final acceptance should occur in P02-T01 after production corpus rerun.
 
 ## Unblocked
 
-- `P00-T05` can start using deterministic corpus markers and heading/path/block anchors from this spike.
+- `P00-T05` consumed the deterministic markers and anchor metadata, then added the update-pair corpus and fingerprint contract needed for honest cross-version exactness.
 - `P02-T01` has a prototype pipeline and tests to harden, but it should not treat P00 limits as final release thresholds.
