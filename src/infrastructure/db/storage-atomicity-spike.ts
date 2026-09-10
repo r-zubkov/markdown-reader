@@ -1,4 +1,4 @@
-import Dexie, { type Table } from "dexie";
+import Dexie, { liveQuery, type Table } from "dexie";
 
 import type {
   BlockAnchor,
@@ -499,6 +499,16 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  public observeVisibleDocuments(
+    listener: (result: StorageSpikeResult<readonly VisibleStorageDocument[]>) => void,
+  ): () => void {
+    const subscription = liveQuery(async () => this.listVisibleDocuments()).subscribe({
+      error: (error: unknown) => { listener(failed(mapStorageError(error))); },
+      next: (result) => { listener(result); },
+    });
+    return () => { subscription.unsubscribe(); };
+  }
+
   public async findCurrentReadyVersionByHash(
     contentHash: string,
   ): Promise<StorageSpikeResult<VisibleStorageDocument | undefined>> {
@@ -545,6 +555,27 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  public async getCurrentReadyVersion(
+    documentId: string,
+  ): Promise<StorageSpikeResult<StorageDocumentVersionRecord>> {
+    try {
+      const value = await this.database.transaction("r", this.documents, this.versions, async () => {
+        const document = await this.documents.get(documentId);
+        if (document === undefined) {
+          throwStorageError("DOCUMENT_NOT_FOUND", "Document is missing.");
+        }
+        const version = await this.versions.get(document.currentVersionId);
+        if (version?.documentId !== documentId || version.state !== "ready") {
+          throwStorageError("VERSION_NOT_FOUND", "Current ready version is missing.");
+        }
+        return version;
+      });
+      return succeeded(value);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
   public async getVersion(
     versionId: string,
   ): Promise<StorageSpikeResult<StorageDocumentVersionRecord | undefined>> {
@@ -565,6 +596,63 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  /**
+   * These narrow accessors are used by the production repository adapter. They
+   * intentionally return records only inside infrastructure, where the adapter
+   * validates and maps them before they can reach a feature.
+   */
+  public async getReaderState(
+    documentId: string,
+  ): Promise<StorageSpikeResult<StorageReaderStateRecord | undefined>> {
+    try {
+      return succeeded(await this.readerStates.get(documentId));
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
+  public async getPreferences(): Promise<StorageSpikeResult<StoragePreferencesRecord>> {
+    try {
+      const value = await this.preferences.get("app");
+      return succeeded(
+        value ?? {
+          desktopTocCollapsed: false,
+          key: "app",
+          remoteImagesEnabled: true,
+          theme: "system",
+          updatedAt: 0,
+        },
+      );
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
+  public async saveTheme(
+    theme: StoragePreferencesRecord["theme"],
+    updatedAt: number,
+  ): Promise<StorageSpikeResult<void>> {
+    try {
+      if (!isSafeNonNegativeInteger(updatedAt)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Preference update time is invalid.");
+      }
+
+      await this.database.transaction("rw", this.preferences, async () => {
+        const current = await this.preferences.get("app");
+        await this.preferences.put({
+          desktopTocCollapsed: current?.desktopTocCollapsed ?? false,
+          key: "app",
+          remoteImagesEnabled: current?.remoteImagesEnabled ?? true,
+          theme,
+          updatedAt,
+        });
+      });
+      return succeeded(undefined);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
   private get documents(): Table<StorageDocumentRecord, string> {
     return this.database.table<StorageDocumentRecord, string>("documents");
   }
@@ -579,6 +667,10 @@ export class StorageAtomicitySpikeRepository {
 
   private get readerStates(): Table<StorageReaderStateRecord, string> {
     return this.database.table<StorageReaderStateRecord, string>("readerStates");
+  }
+
+  private get preferences(): Table<StoragePreferencesRecord, "app"> {
+    return this.database.table<StoragePreferencesRecord, "app">("preferences");
   }
 
   private async requireStagingVersion(

@@ -1,10 +1,13 @@
 import { Component, type ReactNode, useEffect, useRef } from "react";
 import { BrowserRouter, Link, Route, Routes, useLocation, useParams } from "react-router";
+import { getDocumentRepository, initializeRepository } from "@/app/app-services";
 import { appCopy } from "@/shared/i18n/ru";
 import { ThemeProvider, ThemeToggle } from "@/ui/theme/ThemeProvider";
 
 export function App() {
-  return <ThemeProvider><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<LibraryScreen />} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" /><Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary><GlobalStatusRegion /></BrowserRouter></ThemeProvider>;
+  const repository = getDocumentRepository();
+  useEffect(() => { void initializeRepository(); }, []);
+  return <ThemeProvider preferenceStore={repository}><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<LibraryScreen />} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" /><Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary><GlobalStatusRegion /></BrowserRouter></ThemeProvider>;
 }
 
 function AppFrame({ children, reader = false }: { children: ReactNode; reader?: boolean }) {
