@@ -1,7 +1,7 @@
 import { PIPELINE_LIMITS } from "@/domain/content/pipeline-limits";
 import type { PipelineLimits } from "@/domain/content/pipeline-types";
 
-const workerGlobalScope: WorkerGlobalScope = self;
+const workerGlobalScope = globalThis as unknown as DedicatedWorkerGlobalScope;
 const pipelineLimits: PipelineLimits = PIPELINE_LIMITS;
 
 workerGlobalScope.addEventListener("message", () => {

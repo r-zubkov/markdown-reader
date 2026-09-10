@@ -1,13 +1,16 @@
 import { Component, type ReactNode, useEffect, useRef } from "react";
 import { BrowserRouter, Link, Route, Routes, useLocation, useParams } from "react-router";
 import { getDocumentRepository, initializeRepository } from "@/app/app-services";
+import { LibraryScreen } from "@/features/library/LibraryScreen";
+import { MobilePlatformSpike } from "@/features/mobile-platform-spike/MobilePlatformSpike";
+import { VirtualReaderSpikeFromLocation } from "@/features/reader-spike/VirtualReaderSpike";
 import { appCopy } from "@/shared/i18n/ru";
 import { ThemeProvider, ThemeToggle } from "@/ui/theme/ThemeProvider";
 
 export function App() {
   const repository = getDocumentRepository();
   useEffect(() => { void initializeRepository(); }, []);
-  return <ThemeProvider preferenceStore={repository}><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<LibraryScreen />} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" /><Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary><GlobalStatusRegion /></BrowserRouter></ThemeProvider>;
+  return <ThemeProvider preferenceStore={repository}><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<AppFrame><LibraryScreen repository={repository} /></AppFrame>} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" />{import.meta.env.DEV ? <><Route element={<MobilePlatformSpike />} path="/spikes/mobile-platform" /><Route element={<VirtualReaderSpikeFromLocation />} path="/spikes/virtual-reader" /></> : null}<Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary><GlobalStatusRegion /></BrowserRouter></ThemeProvider>;
 }
 
 function AppFrame({ children, reader = false }: { children: ReactNode; reader?: boolean }) {
@@ -16,10 +19,6 @@ function AppFrame({ children, reader = false }: { children: ReactNode; reader?: 
 
 function AppHeader() {
   return <header className="app-header"><Link className="app-header__brand" to="/">{appCopy.productName}</Link><nav aria-label={appCopy.a11y.primaryNavigation} className="app-header__nav"><Link to="/">{appCopy.navigation.library}</Link><ThemeToggle /></nav></header>;
-}
-
-function LibraryScreen() {
-  return <AppFrame><main className="screen screen--library" id="main-content" tabIndex={-1}><section aria-labelledby="library-title" className="screen__content"><p className="screen__eyebrow">{appCopy.library.eyebrow}</p><h1 data-route-heading="true" id="library-title" tabIndex={-1}>{appCopy.library.title}</h1><p className="screen__description">{appCopy.library.localOnly}</p><section aria-label={appCopy.library.placeholderLabel} className="screen__placeholder"><h2>{appCopy.library.emptyTitle}</h2><p>{appCopy.library.emptyDescription}</p></section></section></main></AppFrame>;
 }
 
 function ReaderScreen() {

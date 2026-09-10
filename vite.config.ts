@@ -4,7 +4,7 @@ import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     tailwindcss(),
@@ -23,6 +23,9 @@ export default defineConfig({
     }),
   ],
   resolve: {
+    // Markdown parsing runs in a dedicated Worker. This condition avoids the DOM-only
+    // character-reference decoder selected by the package's browser export.
+    conditions: ["worker", "browser", "module", mode],
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
@@ -35,4 +38,4 @@ export default defineConfig({
     host: "127.0.0.1",
     port: 4173,
   },
-});
+}));

@@ -42,7 +42,7 @@ All files under `codex-spec/` must be written in English only. Do not add non-En
 4. Before changes, compare the specification with the real `package.json`, lockfile, code, git diff and completed-task results.
 5. Complete one task, pass its verification and provide the completion report.
 
-The completed tasks are [P00-T01-project-bootstrap.md](tasks/P00-T01-project-bootstrap.md), [P00-T02-content-pipeline-spike.md](tasks/P00-T02-content-pipeline-spike.md), [P00-T03-storage-atomicity-spike.md](tasks/P00-T03-storage-atomicity-spike.md), [P00-T04-virtual-reader-spike.md](tasks/P00-T04-virtual-reader-spike.md), [P00-T05-progress-mapping-spike.md](tasks/P00-T05-progress-mapping-spike.md), [P00-T06-mobile-ui-platform-spike.md](tasks/P00-T06-mobile-ui-platform-spike.md), [P01-T01-app-shell.md](tasks/P01-T01-app-shell.md) and [P01-T02-data-schema-repository.md](tasks/P01-T02-data-schema-repository.md). The next recommended unblocked task is [P01-T03-first-import-vertical-slice.md](tasks/P01-T03-first-import-vertical-slice.md).
+The completed tasks are [P00-T01-project-bootstrap.md](tasks/P00-T01-project-bootstrap.md), [P00-T02-content-pipeline-spike.md](tasks/P00-T02-content-pipeline-spike.md), [P00-T03-storage-atomicity-spike.md](tasks/P00-T03-storage-atomicity-spike.md), [P00-T04-virtual-reader-spike.md](tasks/P00-T04-virtual-reader-spike.md), [P00-T05-progress-mapping-spike.md](tasks/P00-T05-progress-mapping-spike.md), [P00-T06-mobile-ui-platform-spike.md](tasks/P00-T06-mobile-ui-platform-spike.md), [P01-T01-app-shell.md](tasks/P01-T01-app-shell.md), [P01-T02-data-schema-repository.md](tasks/P01-T02-data-schema-repository.md) and [P01-T03-first-import-vertical-slice.md](tasks/P01-T03-first-import-vertical-slice.md). The next recommended unblocked task is [P01-T04-first-reader-vertical-slice.md](tasks/P01-T04-first-reader-vertical-slice.md).
 
 ## Naming
 
@@ -50,4 +50,4 @@ Ordinary documents use meaningful names without ordered prefixes: this navigator
 
 ## Status
 
-Specification set: `COMPLETE - QA PASSED`. Implementation: `P00 COMPLETE - P01 IMPORT VERTICAL SLICE NEXT`. Completed task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`. Pipeline/storage/reader/mapping and mobile-platform proposals remain subject to their required production/browser reruns.
+Specification set: `COMPLETE - QA PASSED`. Implementation: `P00 COMPLETE - P01 READER VERTICAL SLICE NEXT`. Completed task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`. Pipeline/storage/reader/mapping and mobile-platform proposals remain subject to their required production/browser reruns.
