@@ -1,31 +1,45 @@
-import { BrowserRouter, Route, Routes } from "react-router";
-
-import { MobilePlatformSpike } from "@/features/mobile-platform-spike/MobilePlatformSpike";
-import { VirtualReaderSpikeFromLocation } from "@/features/reader-spike/VirtualReaderSpike";
+import { Component, type ReactNode, useEffect, useRef } from "react";
+import { BrowserRouter, Link, Route, Routes, useLocation, useParams } from "react-router";
+import { appCopy } from "@/shared/i18n/ru";
+import { ThemeProvider, ThemeToggle } from "@/ui/theme/ThemeProvider";
 
 export function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<BootstrapScreen />} path="/" />
-        <Route element={<MobilePlatformSpike />} path="/spikes/mobile-platform" />
-        <Route element={<VirtualReaderSpikeFromLocation />} path="/spikes/virtual-reader" />
-      </Routes>
-    </BrowserRouter>
-  );
+  return <ThemeProvider><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<LibraryScreen />} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" /><Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary><GlobalStatusRegion /></BrowserRouter></ThemeProvider>;
 }
 
-function BootstrapScreen() {
-  return (
-    <main className="app-shell" aria-labelledby="bootstrap-title">
-      <section className="app-shell__content">
-        <p className="app-shell__eyebrow">P00-T01</p>
-        <h1 id="bootstrap-title">Markdown Reader</h1>
-        <p>
-          Bootstrap готовит строгий локальный React/Vite фундамент для будущей
-          browser-only Markdown-читалки.
-        </p>
-      </section>
-    </main>
-  );
+function AppFrame({ children, reader = false }: { children: ReactNode; reader?: boolean }) {
+  return <div className="app-frame"><a className="skip-link" href={reader ? "#document-content" : "#main-content"}>{reader ? appCopy.a11y.skipToDocument : appCopy.a11y.skipToMain}</a><AppHeader />{children}</div>;
+}
+
+function AppHeader() {
+  return <header className="app-header"><Link className="app-header__brand" to="/">{appCopy.productName}</Link><nav aria-label={appCopy.a11y.primaryNavigation} className="app-header__nav"><Link to="/">{appCopy.navigation.library}</Link><ThemeToggle /></nav></header>;
+}
+
+function LibraryScreen() {
+  return <AppFrame><main className="screen screen--library" id="main-content" tabIndex={-1}><section aria-labelledby="library-title" className="screen__content"><p className="screen__eyebrow">{appCopy.library.eyebrow}</p><h1 data-route-heading="true" id="library-title" tabIndex={-1}>{appCopy.library.title}</h1><p className="screen__description">{appCopy.library.localOnly}</p><section aria-label={appCopy.library.placeholderLabel} className="screen__placeholder"><h2>{appCopy.library.emptyTitle}</h2><p>{appCopy.library.emptyDescription}</p></section></section></main></AppFrame>;
+}
+
+function ReaderScreen() {
+  const { documentId } = useParams();
+  if (!documentId) return <NotFoundScreen />;
+  return <AppFrame reader><ReaderToolbar /><main className="screen screen--reader" id="main-content"><article aria-labelledby="reader-title" className="screen__content" id="document-content" tabIndex={-1}><p className="screen__eyebrow">{appCopy.reader.eyebrow}</p><h1 data-route-heading="true" id="reader-title" tabIndex={-1}>{appCopy.reader.title}</h1><p className="screen__description">{appCopy.reader.placeholderDescription}</p></article></main></AppFrame>;
+}
+
+function ReaderToolbar() { return <nav aria-label={appCopy.a11y.readerToolbar} className="reader-toolbar"><Link to="/">{appCopy.navigation.backToLibrary}</Link><span className="reader-toolbar__title">{appCopy.reader.toolbarTitle}</span></nav>; }
+
+function NotFoundScreen() { return <AppFrame><main className="screen" id="main-content" tabIndex={-1}><section aria-labelledby="not-found-title" className="screen__content"><p className="screen__eyebrow">{appCopy.notFound.eyebrow}</p><h1 data-route-heading="true" id="not-found-title" tabIndex={-1}>{appCopy.notFound.title}</h1><p className="screen__description">{appCopy.notFound.description}</p><Link className="screen__link" to="/">{appCopy.navigation.toLibrary}</Link></section></main></AppFrame>; }
+
+function RouteFocusManager() {
+  const location = useLocation(); const previousPath = useRef<string | undefined>(undefined);
+  useEffect(() => { const path = `${location.pathname}${location.search}`; if (previousPath.current !== undefined && previousPath.current !== path) document.querySelector<HTMLElement>("[data-route-heading='true']")?.focus(); previousPath.current = path; }, [location.pathname, location.search]);
+  return null;
+}
+
+function GlobalStatusRegion() { return <div aria-atomic="true" aria-live="polite" className="global-status" role="status" />; }
+interface AppErrorBoundaryState { hasError: boolean }
+class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBoundaryState> {
+  public override state: AppErrorBoundaryState = { hasError: false };
+  public static getDerivedStateFromError(): AppErrorBoundaryState { return { hasError: true }; }
+  public override componentDidCatch() { /* Never expose content or stack details. */ }
+  public override render() { return this.state.hasError ? <NotFoundScreen /> : this.props.children; }
 }
