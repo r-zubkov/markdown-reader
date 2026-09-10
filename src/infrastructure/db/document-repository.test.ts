@@ -45,18 +45,36 @@ describe("DexieDocumentRepository", () => {
 
     const visible = await repository.listDocuments();
     expect(visible).toMatchObject({ ok: true, value: [{ documentId: input.documentId }] });
-    expect(await repository.getCurrentChunkWindow({
+    const window = await repository.getCurrentChunkWindow({
       documentId: input.documentId,
       endOrdinalInclusive: 1,
       pipelineVersion: PIPELINE_VERSION,
       startOrdinal: 0,
-    })).toMatchObject({ ok: true, value: [{ value: "<p>storage chunk 0</p>" }, { value: "<p>storage chunk 1</p>" }] });
+    });
+    expect(window).toMatchObject({ ok: true, value: [{ ordinal: 0, html: { value: "<p>storage chunk 0</p>" } }, { ordinal: 1, html: { value: "<p>storage chunk 1</p>" } }] });
     expect(await repository.getCurrentChunkWindow({
       documentId: input.documentId,
       endOrdinalInclusive: 1,
       pipelineVersion: PIPELINE_VERSION + 1,
       startOrdinal: 0,
     })).toMatchObject({ ok: false, error: { code: "STALE_DERIVED" } });
+    expect(await repository.getCurrentDocument(input.documentId)).toMatchObject({ ok: true, value: { pipelineVersion: PIPELINE_VERSION } });
+    repository.close();
+  });
+
+  it("persists a validated semantic anchor and resolves it only for the current version", async () => {
+    const repository = createRepository("reader-anchor");
+    const staged = createStorageStageInput({ chunkCount: 3, versionId: crypto.randomUUID() });
+    const input = { ...staged, pipelineVersion: PIPELINE_VERSION };
+    await repository.stageVersion(input);
+    await repository.appendChunkBatch({ batchOrdinal: 0, chunks: createStorageChunks(3, { pipelineVersion: PIPELINE_VERSION }), jobId: input.jobId, versionId: input.versionId });
+    await repository.commitVersion({ jobId: input.jobId, readyAt: input.importedAt + 1, versionId: input.versionId });
+    const anchor = { blockId: "block-2", blockOrdinalWithinHeading: 2, headingPathKey: "1:storage-spike[1]", intraBlockRatio: 0, overallSourceRatio: 1, versionId: input.versionId };
+
+    expect(await repository.saveReaderAnchor({ anchor, documentId: input.documentId, progressRatio: 1, updatedAt: 2_000 })).toEqual({ ok: true, value: undefined });
+    expect(await repository.getReaderState(input.documentId)).toMatchObject({ ok: true, value: { anchor, progressRatio: 1 } });
+    expect(await repository.resolveCurrentAnchor({ anchor, documentId: input.documentId })).toEqual({ ok: true, value: 2 });
+    expect(await repository.resolveCurrentAnchor({ anchor: { ...anchor, versionId: "old-version" }, documentId: input.documentId })).toEqual({ ok: true, value: undefined });
     repository.close();
   });
 

@@ -82,8 +82,11 @@ class MemoryRepository implements DocumentRepository {
   public cleanupAbandonedStaging(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
+  public getCurrentDocument(): Promise<RepositoryResult<never>> { return Promise.resolve(fail("DOCUMENT_NOT_FOUND")); }
   public getCurrentChunkWindow(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
+  public resolveCurrentAnchor(): Promise<RepositoryResult<undefined>> { return Promise.resolve(ok(undefined)); }
   public getReaderState(): Promise<RepositoryResult<undefined>> { return Promise.resolve(ok(undefined)); }
+  public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public getPreferences(): Promise<RepositoryResult<{ readonly theme: "system"; readonly remoteImagesEnabled: true; readonly desktopTocCollapsed: false; readonly updatedAt: 0 }>> { return Promise.resolve(ok({ theme: "system", remoteImagesEnabled: true, desktopTocCollapsed: false, updatedAt: 0 })); }
   public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
 }
@@ -95,5 +98,5 @@ async function pipelineFor(file: File) {
 }
 function ids(): () => string { const values = ["document-id", "job-id", "version-id"]; return () => values.shift() ?? "later-id"; }
 function ok<T>(value: T): RepositoryResult<T> { return { ok: true, value }; }
-function fail(code: "UNKNOWN_STORAGE_ERROR"): RepositoryResult<never> { return { ok: false, error: { code } }; }
+function fail(code: "DOCUMENT_NOT_FOUND" | "UNKNOWN_STORAGE_ERROR"): RepositoryResult<never> { return { ok: false, error: { code } }; }
 async function settle(): Promise<void> { await new Promise((resolve) => setTimeout(resolve, 0)); await new Promise((resolve) => setTimeout(resolve, 0)); }

@@ -81,7 +81,11 @@ interface SectionRef {
 `whole` has one `SectionRef`, but its range is read through bounded windows. `safeForSelection=false` forbids user-visible selection until the budget is fixed/passed.
 
 ```ts
-type SanitizedHtml = string & { readonly __brand: 'SanitizedHtml' };
+interface SanitizedHtml {
+  value: string;
+  pipelineVersion: number;
+  // Repository-private unforgeable brand; no public cast or factory exists.
+}
 
 interface PersistedChunk {
   versionId: VersionId;
@@ -281,6 +285,7 @@ One transaction deletes ReaderState, all chunks for all document versions, versi
 ## Versioning and migrations
 
 - Dexie migrations are forward-only, idempotent at record transformation level and separately integration-tested with fixtures from every prior schema shipped.
+- Schema version 3 adds the optional validated `SemanticAnchor` to `readerStates`. Version-2 records without an anchor remain valid and restore at the start; a structurally invalid stored anchor is removed without touching source/version/chunk records. The v1 compatibility fixture upgrades through both migrations.
 - Migration never deletes `sourceBlob` merely because derived fields are invalid. On unsafe migration failure, app opens recovery state and preserves records.
 - Pipeline mismatch sets derived status stale; rebuild stages from Blob and atomic-switches. Reader may use old ready derived data only if its sanitizer policy is still allowed; a security-invalid pipeline forces blocking reprocess.
 - Worker protocol mismatch aborts job; main/worker bundles from different SW versions trigger update/reload guidance, not best-effort parsing.

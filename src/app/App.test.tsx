@@ -14,9 +14,9 @@ describe("App shell routes", () => {
     expect(screen.getByRole("link", { name: "Перейти к основному содержимому" })).toHaveAttribute("href", "#main-content");
   });
 
-  it("renders a reader shell for deep links and recovery for unknown routes", () => {
+  it("renders a reader recovery shell for missing deep links and recovery for unknown routes", async () => {
     const view = renderAt("/documents/local-id#section");
-    expect(screen.getByRole("heading", { level: 1, name: "Документ" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Документ" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Перейти к тексту документа" })).toBeInTheDocument();
     view.unmount(); renderAt("/missing");
     expect(screen.getByRole("heading", { level: 1, name: "Страница не найдена" })).toBeInTheDocument();

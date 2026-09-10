@@ -9,7 +9,7 @@ import type {
   SplitStrategy,
 } from "@/domain/content/pipeline-types";
 
-export const STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION = 2;
+export const STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION = 3;
 export const STORAGE_ATOMICITY_SPIKE_PIPELINE_VERSION = 1;
 
 const splitStrategies = ["auto", "h1", "h2", "h3", "whole"] as const satisfies readonly SplitStrategy[];
@@ -110,8 +110,18 @@ export interface StorageReaderStateRecord {
   readingMode: StorageReadingMode;
   modeOrigin: StorageModeOrigin;
   splitStrategy: SplitStrategy;
+  anchor?: StorageSemanticAnchor;
   progressRatio: number;
   updatedAt: number;
+}
+
+export interface StorageSemanticAnchor {
+  versionId: string;
+  headingPathKey: string;
+  blockOrdinalWithinHeading: number;
+  blockId: string;
+  intraBlockRatio: number;
+  overallSourceRatio: number;
 }
 
 export interface StoragePreferencesRecord {
@@ -611,6 +621,41 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  public async saveReaderAnchor(input: {
+    readonly documentId: string;
+    readonly anchor: StorageSemanticAnchor;
+    readonly progressRatio: number;
+    readonly updatedAt: number;
+  }): Promise<StorageSpikeResult<void>> {
+    try {
+      if (!isNonEmptyString(input.documentId) || !isStorageSemanticAnchor(input.anchor) || !isRatio(input.progressRatio) || !isSafeNonNegativeInteger(input.updatedAt)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Reader anchor update is invalid.");
+      }
+      await this.database.transaction("rw", this.readerStates, async () => {
+        const state = await this.readerStates.get(input.documentId);
+        if (state === undefined) {
+          throwStorageError("DOCUMENT_NOT_FOUND", "Reader state document is missing.");
+        }
+        await this.readerStates.put({ ...state, anchor: input.anchor, progressRatio: input.progressRatio, updatedAt: input.updatedAt });
+      });
+      return succeeded(undefined);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
+  public async findChunkOrdinalByBlockId(versionId: string, blockId: string): Promise<StorageSpikeResult<number | undefined>> {
+    try {
+      if (!isNonEmptyString(versionId) || !isNonEmptyString(blockId)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Reader anchor lookup is invalid.");
+      }
+      const chunk = await this.chunks.where("versionId").equals(versionId).filter((record) => record.blockAnchors.some((anchor) => anchor.blockId === blockId)).first();
+      return succeeded(chunk?.ordinal);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
   public async getPreferences(): Promise<StorageSpikeResult<StoragePreferencesRecord>> {
     try {
       const value = await this.preferences.get("app");
@@ -732,7 +777,7 @@ export function createStorageAtomicitySpikeDatabase(databaseName: string): Dexie
   });
 
   database
-    .version(STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION)
+    .version(2)
     .stores({
       chunks: "[versionId+ordinal], versionId, [versionId+sourceStart], jobId, batchOrdinal",
       documentVersions:
@@ -793,6 +838,31 @@ export function createStorageAtomicitySpikeDatabase(databaseName: string): Dexie
         throw new StorageSpikeOperationError({
           code: "MIGRATION_FAILED",
           message: error instanceof Error ? error.message : "Storage migration failed.",
+        });
+      }
+    });
+
+  database
+    .version(STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION)
+    .stores({
+      chunks: "[versionId+ordinal], versionId, [versionId+sourceStart], jobId, batchOrdinal",
+      documentVersions:
+        "id, documentId, state, contentHash, [documentId+state], jobId, importedAt",
+      documents: "id, normalizedTitle, normalizedFileName, lastOpenedAt, updatedAt",
+      preferences: "key",
+      readerStates: "documentId, updatedAt",
+    })
+    .upgrade(async (transaction) => {
+      try {
+        await transaction.table<StorageReaderStateRecord, string>("readerStates").toCollection().modify((record) => {
+          if (record.anchor !== undefined && !isStorageSemanticAnchor(record.anchor)) {
+            delete record.anchor;
+          }
+        });
+      } catch (error) {
+        throw new StorageSpikeOperationError({
+          code: "MIGRATION_FAILED",
+          message: error instanceof Error ? error.message : "Reader-state migration failed.",
         });
       }
     });
@@ -942,6 +1012,17 @@ function createDefaultReaderState(
     splitStrategy: "auto",
     updatedAt: now,
   };
+}
+
+function isStorageSemanticAnchor(value: unknown): value is StorageSemanticAnchor {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  return isNonEmptyString(record.versionId) && isNonEmptyString(record.headingPathKey) && isNonEmptyString(record.blockId)
+    && isSafeNonNegativeInteger(record.blockOrdinalWithinHeading) && isRatio(record.intraBlockRatio) && isRatio(record.overallSourceRatio);
+}
+
+function isRatio(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1;
 }
 
 function assertStageInput(input: StageStorageVersionInput): void {
@@ -1218,8 +1299,8 @@ function isLowercaseSha256(value: string): boolean {
   return /^[a-f0-9]{64}$/u.test(value);
 }
 
-function isNonEmptyString(value: string): boolean {
-  return value.trim().length > 0;
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function isSafeNonNegativeInteger(value: unknown): value is number {

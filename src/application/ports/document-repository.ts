@@ -52,6 +52,33 @@ export interface StageDocumentVersionInput {
 export interface SanitizedHtml {
   readonly value: string;
   readonly pipelineVersion: number;
+  /** An unexported-symbol brand prevents arbitrary HTML strings at the render boundary. */
+  readonly [sanitizedHtmlBrand]: true;
+}
+
+declare const sanitizedHtmlBrand: unique symbol;
+
+export interface SemanticAnchorSnapshot {
+  readonly versionId: string;
+  readonly headingPathKey: string;
+  readonly blockOrdinalWithinHeading: number;
+  readonly blockId: string;
+  readonly intraBlockRatio: number;
+  readonly overallSourceRatio: number;
+}
+
+export interface ReaderChunk {
+  readonly ordinal: number;
+  readonly html: SanitizedHtml;
+  readonly anchors: readonly SemanticAnchorSnapshot[];
+}
+
+export interface CurrentDocumentSnapshot {
+  readonly documentId: string;
+  readonly versionId: string;
+  readonly title: string;
+  readonly chunkCount: number;
+  readonly pipelineVersion: number;
 }
 
 export interface ReaderStateSnapshot {
@@ -59,6 +86,7 @@ export interface ReaderStateSnapshot {
   readonly readingMode: "continuous" | "sections";
   readonly modeOrigin: "auto" | "user";
   readonly splitStrategy: SplitStrategy;
+  readonly anchor?: SemanticAnchorSnapshot;
   readonly progressRatio: number;
   readonly updatedAt: number;
 }
@@ -90,13 +118,24 @@ export interface DocumentRepository {
   }): Promise<RepositoryResult<void>>;
   listDocuments(): Promise<RepositoryResult<readonly DocumentSummary[]>>;
   observeDocuments(listener: (result: RepositoryResult<readonly DocumentSummary[]>) => void): () => void;
+  getCurrentDocument(documentId: string): Promise<RepositoryResult<CurrentDocumentSnapshot>>;
   getCurrentChunkWindow(input: {
     readonly documentId: string;
     readonly startOrdinal: number;
     readonly endOrdinalInclusive: number;
     readonly pipelineVersion: number;
-  }): Promise<RepositoryResult<readonly SanitizedHtml[]>>;
+  }): Promise<RepositoryResult<readonly ReaderChunk[]>>;
+  resolveCurrentAnchor(input: {
+    readonly documentId: string;
+    readonly anchor: SemanticAnchorSnapshot;
+  }): Promise<RepositoryResult<number | undefined>>;
   getReaderState(documentId: string): Promise<RepositoryResult<ReaderStateSnapshot | undefined>>;
+  saveReaderAnchor(input: {
+    readonly documentId: string;
+    readonly anchor: SemanticAnchorSnapshot;
+    readonly progressRatio: number;
+    readonly updatedAt: number;
+  }): Promise<RepositoryResult<void>>;
   getPreferences(): Promise<RepositoryResult<AppPreferencesSnapshot>>;
   saveTheme(theme: AppPreferencesSnapshot["theme"], updatedAt: number): Promise<RepositoryResult<void>>;
 }

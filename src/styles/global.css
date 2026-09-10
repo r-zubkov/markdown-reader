@@ -87,6 +87,13 @@ a { color: var(--accent); }
 .screen { min-height: calc(100dvh - 56px); padding: 40px max(12px, env(safe-area-inset-left)); }
 .screen__content { width: min(100%, 880px); margin-inline: auto; }
 .screen--reader .screen__content { max-width: 800px; padding: 32px; background: var(--reader-bg); }
+.reader { min-height: 240px; }
+.reader__notice, .reader__window-status { color: var(--text-muted); line-height: 1.5; }
+.reader__notice { min-height: 44px; padding: 12px 0; }
+.reader__recovery p { color: var(--text-muted); line-height: 1.5; }
+.reader-chunk { scroll-margin-top: 72px; padding-block: 16px; border-block-end: 1px solid var(--border); }
+.reader-chunk__content { min-width: 0; }
+.reader-chunk__save { min-height: 44px; margin-block-start: 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); cursor: pointer; }
 .screen__eyebrow { margin: 0 0 8px; color: var(--text-muted); font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .screen h1 { margin: 0; font-size: clamp(1.75rem, 5vw, 2rem); line-height: 1.2; }
 .screen__description { max-width: 65ch; margin-block: 16px 0; color: var(--text-muted); line-height: 1.5; }

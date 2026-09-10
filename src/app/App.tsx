@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Route, Routes, useLocation, useParams } from "reac
 import { getDocumentRepository, initializeRepository } from "@/app/app-services";
 import { LibraryScreen } from "@/features/library/LibraryScreen";
 import { MobilePlatformSpike } from "@/features/mobile-platform-spike/MobilePlatformSpike";
+import { ReaderScreen as ReaderContent, ReaderToolbar } from "@/features/reader/ReaderScreen";
 import { VirtualReaderSpikeFromLocation } from "@/features/reader-spike/VirtualReaderSpike";
 import { appCopy } from "@/shared/i18n/ru";
 import { ThemeProvider, ThemeToggle } from "@/ui/theme/ThemeProvider";
@@ -24,10 +25,8 @@ function AppHeader() {
 function ReaderScreen() {
   const { documentId } = useParams();
   if (!documentId) return <NotFoundScreen />;
-  return <AppFrame reader><ReaderToolbar /><main className="screen screen--reader" id="main-content"><article aria-labelledby="reader-title" className="screen__content" id="document-content" tabIndex={-1}><p className="screen__eyebrow">{appCopy.reader.eyebrow}</p><h1 data-route-heading="true" id="reader-title" tabIndex={-1}>{appCopy.reader.title}</h1><p className="screen__description">{appCopy.reader.placeholderDescription}</p></article></main></AppFrame>;
+  return <AppFrame reader><ReaderToolbar /><ReaderContent documentId={documentId} repository={getDocumentRepository()} /></AppFrame>;
 }
-
-function ReaderToolbar() { return <nav aria-label={appCopy.a11y.readerToolbar} className="reader-toolbar"><Link to="/">{appCopy.navigation.backToLibrary}</Link><span className="reader-toolbar__title">{appCopy.reader.toolbarTitle}</span></nav>; }
 
 function NotFoundScreen() { return <AppFrame><main className="screen" id="main-content" tabIndex={-1}><section aria-labelledby="not-found-title" className="screen__content"><p className="screen__eyebrow">{appCopy.notFound.eyebrow}</p><h1 data-route-heading="true" id="not-found-title" tabIndex={-1}>{appCopy.notFound.title}</h1><p className="screen__description">{appCopy.notFound.description}</p><Link className="screen__link" to="/">{appCopy.navigation.toLibrary}</Link></section></main></AppFrame>; }
 

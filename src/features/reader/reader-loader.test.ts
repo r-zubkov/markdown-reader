@@ -1,0 +1,38 @@
+import { describe, expect, it } from "vitest";
+
+import type { DocumentRepository, RepositoryResult } from "@/application/ports/document-repository";
+import { boundedWindow, loadReader } from "./reader-loader";
+
+describe("P01 reader loader", () => {
+  it("requests one bounded range around the restored semantic anchor", async () => {
+    const repository = new ReaderRepository();
+    const result = await loadReader(repository, "document-id");
+    expect(result).toMatchObject({ status: "ready", targetOrdinal: 12 });
+    expect(repository.windowRequest).toEqual({ documentId: "document-id", endOrdinalInclusive: 15, pipelineVersion: 3, startOrdinal: 8 });
+  });
+
+  it("keeps the initial reader window bounded at document edges", () => {
+    expect(boundedWindow(20, 0)).toEqual({ startOrdinal: 0, endOrdinalInclusive: 7 });
+    expect(boundedWindow(20, 19)).toEqual({ startOrdinal: 12, endOrdinalInclusive: 19 });
+  });
+});
+
+class ReaderRepository implements DocumentRepository {
+  public windowRequest: unknown;
+  public stageVersion(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public appendChunkBatch(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public commitVersion(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string }>> { return Promise.resolve(ok({ documentId: "document-id", versionId: "version-id" })); }
+  public abortVersion(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public cleanupAbandonedStaging(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
+  public observeDocuments(): () => void { return () => undefined; }
+  public getCurrentDocument(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string; readonly title: string; readonly chunkCount: number; readonly pipelineVersion: number }>> { return Promise.resolve(ok({ chunkCount: 20, documentId: "document-id", pipelineVersion: 3, title: "Reader document", versionId: "version-id" })); }
+  public getCurrentChunkWindow(input: { readonly documentId: string; readonly startOrdinal: number; readonly endOrdinalInclusive: number; readonly pipelineVersion: number }): Promise<RepositoryResult<readonly []>> { this.windowRequest = input; return Promise.resolve(ok([])); }
+  public resolveCurrentAnchor(): Promise<RepositoryResult<number | undefined>> { return Promise.resolve(ok(12)); }
+  public getReaderState(): Promise<RepositoryResult<{ readonly documentId: string; readonly readingMode: "continuous"; readonly modeOrigin: "auto"; readonly splitStrategy: "auto"; readonly anchor: { readonly versionId: string; readonly headingPathKey: string; readonly blockOrdinalWithinHeading: number; readonly blockId: string; readonly intraBlockRatio: number; readonly overallSourceRatio: number }; readonly progressRatio: 0; readonly updatedAt: 0 }>> { return Promise.resolve(ok({ anchor: { blockId: "block-12", blockOrdinalWithinHeading: 12, headingPathKey: "path", intraBlockRatio: 0, overallSourceRatio: 0.63, versionId: "version-id" }, documentId: "document-id", modeOrigin: "auto", progressRatio: 0, readingMode: "continuous", splitStrategy: "auto", updatedAt: 0 })); }
+  public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public getPreferences(): Promise<RepositoryResult<{ readonly theme: "system"; readonly remoteImagesEnabled: true; readonly desktopTocCollapsed: false; readonly updatedAt: 0 }>> { return Promise.resolve(ok({ desktopTocCollapsed: false, remoteImagesEnabled: true, theme: "system", updatedAt: 0 })); }
+  public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+}
+
+function ok<T>(value: T): RepositoryResult<T> { return { ok: true, value }; }
