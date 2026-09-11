@@ -1,4 +1,5 @@
 import { runMarkdownPipeline } from "@/domain/content/markdown-pipeline";
+import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import type { PipelineMetadata } from "@/domain/content/pipeline-types";
 import {
   getMessageJobId,
@@ -34,10 +35,14 @@ async function processImport(message: Extract<MainToImportWorker, { readonly typ
       postFailure(jobId, "UNSUPPORTED_EXTENSION");
       return;
     }
+    if (file.size > limits.maxFileBytes) {
+      postFailure(jobId, "FILE_TOO_LARGE");
+      return;
+    }
     if (isCancelled(jobId)) return;
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (isCancelled(jobId)) return;
-    post({ type: "import.progress", protocolVersion: WORKER_PROTOCOL_VERSION, jobId, stage: "processing" });
+    post({ type: "import.progress", protocolVersion: WORKER_PROTOCOL_VERSION, jobId, stage: "processing", ratio: 0.1 });
     const result = await runMarkdownPipeline(bytes, file.name, limits);
     if (isCancelled(jobId)) return;
     if (!result.ok) {
@@ -47,12 +52,25 @@ async function processImport(message: Extract<MainToImportWorker, { readonly typ
     postMetadata(jobId, result.value.metadata);
     for (const batch of result.value.batches) {
       if (isCancelled(jobId)) return;
-      post({ type: "import.progress", protocolVersion: WORKER_PROTOCOL_VERSION, jobId, stage: "staging" });
-      post({ type: "import.chunkBatch", protocolVersion: WORKER_PROTOCOL_VERSION, jobId, batchOrdinal: batch.batchOrdinal, chunks: batch.chunks });
+      const ratio = result.value.batches.length === 0
+        ? 0.9
+        : 0.7 + (batch.batchOrdinal + 1) / result.value.batches.length * 0.2;
+      post({ type: "import.progress", protocolVersion: WORKER_PROTOCOL_VERSION, jobId, stage: "staging", ratio });
+      post({ type: "import.chunkBatch", protocolVersion: WORKER_PROTOCOL_VERSION, jobId, batchOrdinal: batch.batchOrdinal, chunks: batch.chunks, htmlBytes: batch.htmlBytes });
     }
     if (isCancelled(jobId)) return;
     post({ type: "import.progress", protocolVersion: WORKER_PROTOCOL_VERSION, jobId, stage: "finalizing" });
-    post({ type: "import.complete", protocolVersion: WORKER_PROTOCOL_VERSION, jobId });
+    post({
+      type: "import.complete",
+      protocolVersion: WORKER_PROTOCOL_VERSION,
+      jobId,
+      result: {
+        pipelineVersion: PIPELINE_VERSION,
+        contentHash: result.value.metadata.contentHash,
+        chunkCount: result.value.metadata.chunkCount,
+        batchCount: result.value.batches.length,
+      },
+    });
   } catch {
     postFailure(jobId, "WORKER_CRASH");
   } finally {

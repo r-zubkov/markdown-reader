@@ -183,6 +183,7 @@ export interface VisibleStorageDocument {
 
 export interface SourceBlobRecoveryResult {
   readonly documentId: string;
+  readonly fileName: string;
   readonly versionId: string;
   readonly pipelineVersion: number;
   readonly sourceBlob: Blob;
@@ -553,6 +554,7 @@ export class StorageAtomicitySpikeRepository {
 
         return {
           documentId,
+          fileName: version.fileName,
           pipelineVersion: version.pipelineVersion,
           sourceBlob,
           versionId: version.id,

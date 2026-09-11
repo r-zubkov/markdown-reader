@@ -39,7 +39,7 @@ const measuredFixtureIds = [
   "huge-single-node",
 ] as const satisfies readonly PipelineCorpusFixtureId[];
 
-describe("P00-T02 pipeline benchmark proxy", () => {
+describe("P02-T01 production pipeline benchmark", () => {
   it("measures deterministic corpus without losing semantic markers", async () => {
     const measurements: PipelineMeasurement[] = [];
 
@@ -79,7 +79,7 @@ describe("P00-T02 pipeline benchmark proxy", () => {
       });
     }
 
-    console.info("P00-T02 pipeline measurements", JSON.stringify(measurements, null, 2));
+    console.info("P02-T01 pipeline measurements", JSON.stringify(measurements, null, 2));
 
     expect(measurements.every((measurement) => measurement.elapsedMs < 30_000)).toBe(true);
     expect(measurements.some((measurement) => measurement.chunkCount > 1)).toBe(true);
@@ -92,7 +92,7 @@ describe("P00-T02 pipeline benchmark proxy", () => {
     );
 
     console.info(
-      "P00-T02 auto-detect measurements",
+      "P02-T01 auto-detect measurements",
       JSON.stringify({ ambiguous, javascript }, null, 2),
     );
 
@@ -100,6 +100,36 @@ describe("P00-T02 pipeline benchmark proxy", () => {
     expect(ambiguous.relevance).toBeLessThan(PIPELINE_LIMITS.autoDetectMinRelevance);
     expect(Math.max(ambiguous.elapsedMs, javascript.elapsedMs)).toBeLessThan(1_000);
   });
+
+  it("measures the accepted top-level block boundary and rejects one block above it", async () => {
+    const atBoundary = Array.from(
+      { length: PIPELINE_LIMITS.maxTopLevelBlocks },
+      (_, index) => `paragraph ${String(index)}`,
+    ).join("\n\n");
+    const aboveBoundary = `${atBoundary}\n\nover limit`;
+    const startedAt = performance.now();
+    const accepted = await runMarkdownPipelineFromText(atBoundary, "top-level-at.md");
+    const elapsedMs = performance.now() - startedAt;
+    const rejected = await runMarkdownPipelineFromText(aboveBoundary, "top-level-above.md");
+
+    console.info("P02-T01 structural boundary measurement", JSON.stringify({
+      blockLimit: PIPELINE_LIMITS.maxTopLevelBlocks,
+      bytes: new TextEncoder().encode(atBoundary).byteLength,
+      elapsedMs,
+    }, null, 2));
+
+    expect(accepted.ok).toBe(true);
+    expect(elapsedMs).toBeLessThan(30_000);
+    expect(rejected).toMatchObject({
+      ok: false,
+      error: {
+        code: "PIPELINE_LIMIT",
+        limitName: "maxTopLevelBlocks",
+        limit: PIPELINE_LIMITS.maxTopLevelBlocks,
+        actual: PIPELINE_LIMITS.maxTopLevelBlocks + 1,
+      },
+    });
+  }, 30_000);
 });
 
 async function measurePipeline(fixture: PipelineCorpusFixture): Promise<{

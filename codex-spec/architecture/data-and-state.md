@@ -288,6 +288,7 @@ One transaction deletes ReaderState, all chunks for all document versions, versi
 - Schema version 3 adds the optional validated `SemanticAnchor` to `readerStates`. Version-2 records without an anchor remain valid and restore at the start; a structurally invalid stored anchor is removed without touching source/version/chunk records. The v1 compatibility fixture upgrades through both migrations.
 - Migration never deletes `sourceBlob` merely because derived fields are invalid. On unsafe migration failure, app opens recovery state and preserves records.
 - Pipeline mismatch sets derived status stale; rebuild stages from Blob and atomic-switches. Reader may use old ready derived data only if its sanitizer policy is still allowed; a security-invalid pipeline forces blocking reprocess.
+- Pipeline version 4 is the first production pipeline version. It retains version-3 block fingerprints and rebuilds derived output to fix cross-chunk references/footnotes, internal heading links, bounded title metadata and logical `whole` layout safety. The repository exposes source Blob recovery without branding stale HTML; rebuild uses the current-version precondition.
 - Worker protocol mismatch aborts job; main/worker bundles from different SW versions trigger update/reload guidance, not best-effort parsing.
 
 ## Progress persistence and mapping

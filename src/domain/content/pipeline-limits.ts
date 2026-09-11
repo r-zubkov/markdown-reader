@@ -1,6 +1,6 @@
 import type { PipelineLimits } from "./pipeline-types";
 
-export const PIPELINE_VERSION = 3;
+export const PIPELINE_VERSION = 4;
 
 export const HEADING_ID_PREFIX = "mdr-h-";
 export const FOOTNOTE_ID_PREFIX = "mdr-fn-";
@@ -44,9 +44,13 @@ export const PIPELINE_SUPPORTED_LANGUAGES = [
 export type SupportedHighlightLanguage =
   (typeof PIPELINE_SUPPORTED_LANGUAGES)[number];
 
-// Current P00 proposal; P02-T01 should remeasure before release.
+// Production import budgets. Changes require corpus, security and browser reruns.
 export const PIPELINE_LIMITS: PipelineLimits = {
   maxFileBytes: 1_250_000,
+  maxAstNodes: 100_000,
+  maxAstDepth: 128,
+  maxTopLevelBlocks: 20_000,
+  maxTitleChars: 240,
   targetChunkCost: 8_000,
   maxChunkCostBeforeFallback: 24_000,
   oversizedNodeCost: 32_000,

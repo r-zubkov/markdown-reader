@@ -12,6 +12,7 @@ import type {
   Definition,
   Heading,
   Image,
+  Link,
   Parents as MdastParent,
   Root as MdastRoot,
   RootContent as MdastRootContent,
@@ -88,6 +89,11 @@ interface ChunkPlan {
   readonly oversized: boolean;
 }
 
+interface HastChunkPlan {
+  readonly roots: readonly HastRoot[];
+  readonly fallbackChunkOrdinals: ReadonlySet<number>;
+}
+
 const markdownParser = unified().use(remarkParse).use(remarkGfm);
 
 const mdastToHastProcessor = unified().use(remarkRehype, {
@@ -96,7 +102,7 @@ const mdastToHastProcessor = unified().use(remarkRehype, {
   footnoteBackLabel(referenceIndex: number, rereferenceIndex: number) {
     const note = referenceIndex + 1;
     const repeated =
-      rereferenceIndex > 0 ? `, ссылка ${String(rereferenceIndex + 1)}` : "";
+      rereferenceIndex > 1 ? `, ссылка ${String(rereferenceIndex)}` : "";
     return `Вернуться к сноске ${String(note)}${repeated}`;
   },
   footnoteLabel: "Сноски",
@@ -175,77 +181,99 @@ export async function runMarkdownPipeline(
     return decoded;
   }
 
-  const hashStartedAt = performanceNow();
-  const contentHash = await sha256Hex(bytes);
-  const hashMs = performanceNow() - hashStartedAt;
-  const parseStartedAt = performanceNow();
-  const mdast = parseMarkdownForPipeline(decoded.value);
-  const parseMs = performanceNow() - parseStartedAt;
-  const metadataStartedAt = performanceNow();
-  const warningCounter = createWarningCounter();
-  const headingRecords = annotateHeadingRecords(mdast);
-  const rawSafeMdast = neutralizeRawHtml(mdast, warningCounter);
-  annotateImageProperties(rawSafeMdast);
-  const nonRenderingDefinitions = collectNonRenderingDefinitions(rawSafeMdast);
-  const blocks = await buildTopLevelBlocks(
-    rawSafeMdast,
-    decoded.value,
-    headingRecords,
-    limits,
-  );
-  const metadataMs = performanceNow() - metadataStartedAt;
-  const partitionStartedAt = performanceNow();
-  const chunkPlans = partitionBlocks(blocks, limits);
-  const partitionMs = performanceNow() - partitionStartedAt;
-  const renderStartedAt = performanceNow();
-  const chunks = chunkPlans.map((plan) =>
-    renderChunk(plan, nonRenderingDefinitions, warningCounter, limits),
-  );
-  const renderMs = performanceNow() - renderStartedAt;
-  const layoutStartedAt = performanceNow();
-  const layouts = buildLayouts(chunkPlans, limits);
-  const outline = buildOutline(headingRecords);
-  const title = chooseTitle(outline, fileName);
+  try {
+    const hashStartedAt = performanceNow();
+    const contentHash = await sha256Hex(bytes);
+    const hashMs = performanceNow() - hashStartedAt;
+    const parseStartedAt = performanceNow();
+    const mdast = parseMarkdownForPipeline(decoded.value);
+    const parseMs = performanceNow() - parseStartedAt;
+    const limitFailure = inspectAstLimits(mdast, limits);
 
-  for (const record of headingRecords) {
-    record.chunkOrdinal = findChunkOrdinalForSourceStart(chunkPlans, record.sourceStart);
-  }
+    if (limitFailure !== undefined) {
+      return { ok: false, error: limitFailure };
+    }
 
-  const orderedOutline = buildOutline(headingRecords);
-  const layoutMs = performanceNow() - layoutStartedAt;
-  const batchStartedAt = performanceNow();
-  const batches = batchChunks(chunks, limits);
-  const batchMs = performanceNow() - batchStartedAt;
-  const timings: PipelineStageTimings = {
-    decodeMs,
-    hashMs,
-    parseMs,
-    metadataMs,
-    partitionMs,
-    renderMs,
-    layoutMs,
-    batchMs,
-    totalMs: performanceNow() - startedAt,
-  };
+    if (!hasConsistentTopLevelPositions(mdast, decoded.value.length)) {
+      return { ok: false, error: { code: "PIPELINE_FAILED" } };
+    }
 
-  return {
-    ok: true,
-    value: {
-      metadata: {
-        contentHash,
-        byteLength: bytes.byteLength,
-        charLength: decoded.value.length,
-        title,
-        outline: orderedOutline,
-        layouts,
-        chunkCount: chunks.length,
-        warnings: warningCounter.toArray(),
+    const metadataStartedAt = performanceNow();
+    const warningCounter = createWarningCounter();
+    const headingRecords = annotateHeadingRecords(mdast);
+    rewriteInternalHeadingLinks(mdast, headingRecords);
+    const rawSafeMdast = neutralizeRawHtml(mdast, warningCounter);
+    annotateImageProperties(rawSafeMdast);
+    const blocks = await buildTopLevelBlocks(
+      rawSafeMdast,
+      decoded.value,
+      headingRecords,
+      limits,
+    );
+    const metadataMs = performanceNow() - metadataStartedAt;
+    const partitionStartedAt = performanceNow();
+    const chunkPlans = partitionBlocks(blocks, limits);
+    const partitionMs = performanceNow() - partitionStartedAt;
+    const renderStartedAt = performanceNow();
+    const completeHast = mdastToHastProcessor.runSync(rawSafeMdast);
+    const hastChunks = splitHastIntoChunks(completeHast, chunkPlans);
+    const chunks = chunkPlans.map((plan, index) =>
+      renderChunk(
+        plan,
+        hastChunks.roots[index] ?? { type: "root", children: [] },
+        hastChunks.fallbackChunkOrdinals.has(index),
+        warningCounter,
+        limits,
+      ),
+    );
+    const renderMs = performanceNow() - renderStartedAt;
+    const layoutStartedAt = performanceNow();
+    const layouts = buildLayouts(chunkPlans, limits);
+
+    for (const record of headingRecords) {
+      record.chunkOrdinal = findChunkOrdinalForSourceStart(chunkPlans, record.sourceStart);
+    }
+
+    const orderedOutline = buildOutline(headingRecords);
+    const title = chooseTitle(orderedOutline, fileName, warningCounter, limits);
+    const layoutMs = performanceNow() - layoutStartedAt;
+    const batchStartedAt = performanceNow();
+    const batches = batchChunks(chunks, limits);
+    const batchMs = performanceNow() - batchStartedAt;
+    const timings: PipelineStageTimings = {
+      decodeMs,
+      hashMs,
+      parseMs,
+      metadataMs,
+      partitionMs,
+      renderMs,
+      layoutMs,
+      batchMs,
+      totalMs: performanceNow() - startedAt,
+    };
+
+    return {
+      ok: true,
+      value: {
+        metadata: {
+          pipelineVersion: PIPELINE_VERSION,
+          contentHash,
+          byteLength: bytes.byteLength,
+          charLength: decoded.value.length,
+          title,
+          outline: orderedOutline,
+          layouts,
+          chunkCount: chunks.length,
+          warnings: warningCounter.toArray(),
+        },
+        chunks,
+        batches,
+        timings,
       },
-      chunks,
-      batches,
-      timings,
-    },
-  };
+    };
+  } catch {
+    return { ok: false, error: { code: "PIPELINE_FAILED" } };
+  }
 }
 
 export async function runMarkdownPipelineFromText(
@@ -365,6 +393,88 @@ function decodeUtf8(
       error: { code: "INVALID_UTF8" },
     };
   }
+}
+
+function inspectAstLimits(
+  root: MdastRoot,
+  limits: PipelineLimits,
+): PipelineFailure | undefined {
+  if (root.children.length > limits.maxTopLevelBlocks) {
+    return {
+      code: "PIPELINE_LIMIT",
+      limitName: "maxTopLevelBlocks",
+      limit: limits.maxTopLevelBlocks,
+      actual: root.children.length,
+    };
+  }
+
+  let nodeCount = 0;
+  const stack: { readonly node: MdastRoot | MdastRootContent; readonly depth: number }[] = [
+    { node: root, depth: 0 },
+  ];
+
+  while (stack.length > 0) {
+    const current = stack.pop();
+
+    if (current === undefined) {
+      break;
+    }
+
+    nodeCount += 1;
+
+    if (nodeCount > limits.maxAstNodes) {
+      return {
+        code: "PIPELINE_LIMIT",
+        limitName: "maxAstNodes",
+        limit: limits.maxAstNodes,
+        actual: nodeCount,
+      };
+    }
+
+    if (current.depth > limits.maxAstDepth) {
+      return {
+        code: "PIPELINE_LIMIT",
+        limitName: "maxAstDepth",
+        limit: limits.maxAstDepth,
+        actual: current.depth,
+      };
+    }
+
+    if (hasChildren(current.node)) {
+      for (let index = current.node.children.length - 1; index >= 0; index -= 1) {
+        const child = current.node.children[index];
+
+        if (isObjectNode(child)) {
+          stack.push({ node: child, depth: current.depth + 1 });
+        }
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function hasConsistentTopLevelPositions(root: MdastRoot, sourceLength: number): boolean {
+  let previousEnd = 0;
+
+  for (const node of root.children) {
+    const sourceStart = optionalPositionStart(node);
+    const sourceEnd = optionalPositionEnd(node);
+
+    if (
+      sourceStart === undefined ||
+      sourceEnd === undefined ||
+      sourceStart < previousEnd ||
+      sourceEnd < sourceStart ||
+      sourceEnd > sourceLength
+    ) {
+      return false;
+    }
+
+    previousEnd = sourceEnd;
+  }
+
+  return true;
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -574,9 +684,64 @@ function createChunkPlan(ordinal: number, blocks: readonly TopLevelBlock[]): Chu
   };
 }
 
+function splitHastIntoChunks(
+  root: HastRoot,
+  chunks: readonly ChunkPlan[],
+): HastChunkPlan {
+  const roots: HastRoot[] = chunks.map(() => ({ type: "root", children: [] }));
+  const fallbackChunkOrdinals = new Set<number>();
+
+  if (chunks.length === 0) {
+    return { roots, fallbackChunkOrdinals };
+  }
+
+  let previousTargetOrdinal = 0;
+
+  for (const child of root.children) {
+    const sourceStart = optionalPositionStart(child);
+    let targetOrdinal: number | undefined;
+
+    if (sourceStart !== undefined) {
+      targetOrdinal = chunks.find(
+        (chunk) => chunk.sourceStart <= sourceStart && sourceStart <= chunk.sourceEnd,
+      )?.ordinal;
+    }
+
+    if (targetOrdinal === undefined && isWhitespaceText(child)) {
+      targetOrdinal = previousTargetOrdinal;
+    }
+
+    if (targetOrdinal === undefined) {
+      targetOrdinal = chunks.length - 1;
+
+      if (!isGeneratedFootnoteSection(child)) {
+        fallbackChunkOrdinals.add(targetOrdinal);
+      }
+    }
+
+    roots[targetOrdinal]?.children.push(child);
+    previousTargetOrdinal = targetOrdinal;
+  }
+
+  return { roots, fallbackChunkOrdinals };
+}
+
+function isWhitespaceText(node: HastRootContent): boolean {
+  return node.type === "text" && node.value.trim().length === 0;
+}
+
+function isGeneratedFootnoteSection(node: HastRootContent): boolean {
+  return (
+    isElement(node) &&
+    node.tagName === "section" &&
+    (node.properties.dataFootnotes === true || node.properties.dataFootnotes === "")
+  );
+}
+
 function renderChunk(
   plan: ChunkPlan,
-  nonRenderingDefinitions: readonly Definition[],
+  hast: HastRoot,
+  fragmentFallback: boolean,
   warnings: WarningCounter,
   limits: PipelineLimits,
 ): PersistablePipelineChunk {
@@ -584,17 +749,11 @@ function renderChunk(
     warnings.increment("OVERSIZED_NODE");
   }
 
-  const chunkRoot: MdastRoot = {
-    type: "root",
-    children: [...nonRenderingDefinitions, ...plan.blocks.map((block) => block.node)],
-  };
-  const hast = mdastToHastProcessor.runSync(chunkRoot);
-
   applyUrlPolicy(hast, warnings, limits);
   const highlightDiagnostic = applyHighlightPolicy(hast, warnings, limits);
   const sanitized = hastSanitizeProcessor.runSync(hast);
   const html = hastStringifyProcessor.stringify(sanitized);
-  const diagnosticCode = chooseChunkDiagnostic(plan, highlightDiagnostic);
+  const diagnosticCode = chooseChunkDiagnostic(plan, fragmentFallback, highlightDiagnostic);
 
   return {
     ordinal: plan.ordinal,
@@ -612,10 +771,15 @@ function renderChunk(
 
 function chooseChunkDiagnostic(
   plan: ChunkPlan,
+  fragmentFallback: boolean,
   highlightDiagnostic: ChunkDiagnosticCode | undefined,
 ): ChunkDiagnosticCode | undefined {
   if (plan.oversized) {
     return "OVERSIZED_NODE";
+  }
+
+  if (fragmentFallback) {
+    return "FRAGMENT_FALLBACK";
   }
 
   return highlightDiagnostic;
@@ -698,6 +862,7 @@ function applyImagePolicy(
   }
 
   warnings.increment("UNSUPPORTED_IMAGE");
+  const alt = getPropertyString(element.properties, "alt");
 
   element.tagName = "span";
   element.properties = {
@@ -707,7 +872,10 @@ function applyImagePolicy(
   element.children = [
     {
       type: "text",
-      value: "Неподдерживаемое изображение",
+      value:
+        alt === undefined || alt.trim().length === 0
+          ? "Неподдерживаемое изображение"
+          : `Неподдерживаемое изображение: ${alt}`,
     },
   ];
 }
@@ -731,11 +899,20 @@ function applyHighlightPolicy(
     }
 
     const source = textContent(code);
-    const language = normalizeLanguageLabel(getLanguageClass(code.properties));
+    const languageClass = getLanguageClass(code.properties);
+    const language = normalizeLanguageLabel(languageClass);
 
     if (source.length > limits.maxCodeHighlightChars) {
       code.properties = { className: ["language-plaintext"] };
       warnings.increment("CODE_HIGHLIGHT_SKIPPED");
+      diagnostic = diagnostic ?? "HIGHLIGHT_FAILED";
+      return;
+    }
+
+    if (languageClass !== undefined && language === undefined) {
+      code.properties = { className: ["language-plaintext"] };
+      code.children = [{ type: "text", value: source }];
+      warnings.increment("UNSUPPORTED_LANGUAGE");
       diagnostic = diagnostic ?? "HIGHLIGHT_FAILED";
       return;
     }
@@ -823,7 +1000,10 @@ function createSanitizeSchema(): RehypeSanitizeSchema {
         ["disabled", true],
         ["type", "checkbox"],
       ],
-      li: [["className", "task-list-item"]],
+      li: [
+        ["className", "task-list-item"],
+        ["id", /^mdr-/],
+      ],
       ol: [
         "ariaDescribedBy",
         "ariaLabel",
@@ -837,6 +1017,7 @@ function createSanitizeSchema(): RehypeSanitizeSchema {
         ["className", "mdr-image-placeholder", /^hljs(?:-[a-z0-9-]+)?$/],
         ["role", "note"],
       ],
+      sup: [["id", /^mdr-/]],
       table: ["ariaDescribedBy", "ariaLabel"],
       th: ["align"],
       td: ["align"],
@@ -918,7 +1099,9 @@ function buildWholeLayout(
   }
 
   const estimatedCost = chunks.reduce((total, chunk) => total + chunk.estimatedCost, 0);
-  const safeForSelection = estimatedCost <= limits.maxChunkCostBeforeFallback;
+  const safeForSelection = chunks.every(
+    (chunk) => chunk.estimatedCost <= limits.maxChunkCostBeforeFallback,
+  );
 
   return {
     strategy: "whole",
@@ -933,7 +1116,7 @@ function buildWholeLayout(
       },
     ],
     safeForSelection,
-    ...(safeForSelection ? {} : { unavailableReason: "DOM_BUDGET" }),
+    ...(safeForSelection ? {} : { unavailableReason: "OVERSIZED_NODE" }),
   };
 }
 
@@ -1109,10 +1292,6 @@ function neutralizeRawHtmlChildren(parent: MdastParent, warnings: WarningCounter
   }
 }
 
-function collectNonRenderingDefinitions(root: MdastRoot): readonly Definition[] {
-  return root.children.filter((node): node is Definition => node.type === "definition");
-}
-
 function walkHast(root: HastNode, visitor: (node: HastNode) => void): void {
   visitor(root);
 
@@ -1139,6 +1318,12 @@ function isHeading(node: MdastRoot | MdastRootContent): node is Heading {
 
 function isImage(node: MdastRoot | MdastRootContent): node is Image {
   return node.type === "image";
+}
+
+function isLinkOrDefinition(
+  node: MdastRoot | MdastRootContent,
+): node is Link | Definition {
+  return node.type === "link" || node.type === "definition";
 }
 
 function isOutlineDepth(depth: Heading["depth"]): depth is 1 | 2 | 3 {
@@ -1176,6 +1361,41 @@ function annotateImageProperties(root: MdastRoot): void {
       ...node.data,
       hProperties,
     };
+  });
+}
+
+function rewriteInternalHeadingLinks(
+  root: MdastRoot,
+  headings: readonly HeadingRecord[],
+): void {
+  const headingIdBySlug = new Map<string, string>();
+
+  for (const heading of headings) {
+    const slug = slugify(heading.text);
+
+    if (!headingIdBySlug.has(slug)) {
+      headingIdBySlug.set(slug, heading.id);
+    }
+  }
+
+  walkMdast(root, (node) => {
+    if (!isLinkOrDefinition(node) || !node.url.startsWith("#")) {
+      return;
+    }
+
+    let decodedFragment: string;
+
+    try {
+      decodedFragment = decodeURIComponent(node.url.slice(1));
+    } catch {
+      return;
+    }
+
+    const targetId = headingIdBySlug.get(slugify(decodedFragment));
+
+    if (targetId !== undefined) {
+      node.url = `#${targetId}`;
+    }
   });
 }
 
@@ -1266,7 +1486,7 @@ function classifyLinkHref(
     return { allowed: false };
   }
 
-  if (trimmed.startsWith("#")) {
+  if (/^#mdr-[a-z0-9-]+$/u.test(trimmed)) {
     return {
       allowed: true,
       external: false,
@@ -1367,14 +1587,26 @@ function findChunkOrdinalForSourceStart(
   return chunk?.ordinal ?? 0;
 }
 
-function chooseTitle(outline: readonly OutlineItem[], fileName: string): string {
+function chooseTitle(
+  outline: readonly OutlineItem[],
+  fileName: string,
+  warnings: WarningCounter,
+  limits: PipelineLimits,
+): string {
   const firstH1 = outline.find((item) => item.level === 1);
+  const candidate =
+    firstH1 !== undefined && firstH1.text.length > 0
+      ? firstH1.text
+      : normalizeDisplayText(stripMarkdownExtension(fileName)) || "Untitled document";
 
-  if (firstH1 !== undefined && firstH1.text.length > 0) {
-    return firstH1.text;
+  const characters = Array.from(candidate);
+
+  if (characters.length <= limits.maxTitleChars) {
+    return candidate;
   }
 
-  return normalizeDisplayText(stripMarkdownExtension(fileName)) || "Untitled document";
+  warnings.increment("TITLE_TRUNCATED");
+  return characters.slice(0, limits.maxTitleChars).join("").trimEnd();
 }
 
 function stripMarkdownExtension(fileName: string): string {
@@ -1404,26 +1636,34 @@ function countDescendants(node: MdastRootContent): number {
 }
 
 function positionStart(node: { readonly position?: unknown }): number {
+  return optionalPositionStart(node) ?? 0;
+}
+
+function optionalPositionStart(node: { readonly position?: unknown }): number | undefined {
   const position = node.position;
   const start = isRecord(position) ? position.start : undefined;
   const offset = isRecord(start) ? start.offset : undefined;
 
   return typeof offset === "number" && Number.isSafeInteger(offset) && offset >= 0
     ? offset
-    : 0;
+    : undefined;
 }
 
 function positionEnd(
   node: { readonly position?: unknown },
   fallback: number,
 ): number {
+  return optionalPositionEnd(node) ?? fallback;
+}
+
+function optionalPositionEnd(node: { readonly position?: unknown }): number | undefined {
   const position = node.position;
   const end = isRecord(position) ? position.end : undefined;
   const offset = isRecord(end) ? end.offset : undefined;
 
   return typeof offset === "number" && Number.isSafeInteger(offset) && offset >= 0
     ? offset
-    : fallback;
+    : undefined;
 }
 
 function createBlockId(

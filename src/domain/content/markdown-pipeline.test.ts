@@ -37,7 +37,7 @@ const semanticFixtureIds = [
 
 const layoutStrategies = ["auto", "h1", "h2", "h3", "whole"] as const satisfies readonly SplitStrategy[];
 
-describe("Markdown pipeline spike", () => {
+describe("Production Markdown pipeline", () => {
   for (const fixtureId of semanticFixtureIds) {
     it(`preserves marker order and top-level block anchors for ${fixtureId}`, async () => {
       const fixture = getFixture(fixtureId);
@@ -69,6 +69,37 @@ describe("Markdown pipeline spike", () => {
     expect(root.querySelector("section.footnotes")).not.toBeNull();
     expect(root.querySelector("code.hljs.language-typescript")).not.toBeNull();
     expect(success.metadata.title).toContain("Small Fixture");
+    expect(success.metadata.pipelineVersion).toBe(PIPELINE_VERSION);
+  });
+
+  it("resolves cross-chunk footnotes once with Russian accessible labels and unique ids", async () => {
+    const success = expectPipelineSuccess(
+      await runMarkdownPipelineFromText([
+        "# First",
+        "",
+        "First reference.[^shared]",
+        "",
+        "# Second",
+        "",
+        "Repeated reference.[^shared]",
+        "",
+        "# Notes",
+        "",
+        "[^shared]: Shared footnote body.",
+      ].join("\n"), "footnotes.md"),
+    );
+    const root = renderRoot(success);
+    const ids = Array.from(root.querySelectorAll("[id]"), (element) => element.id);
+
+    expect(root.querySelectorAll("section.footnotes")).toHaveLength(1);
+    expect(root.querySelector("section.footnotes")).toHaveTextContent("Shared footnote body");
+    expect(root.querySelector("section.footnotes h2.sr-only")).toHaveTextContent("Сноски");
+    expect(root.querySelectorAll("a[data-footnote-backref]")).toHaveLength(2);
+    expect(Array.from(root.querySelectorAll("a[data-footnote-backref]"), (link) => link.getAttribute("aria-label"))).toEqual([
+      "Вернуться к сноске 1",
+      "Вернуться к сноске 1, ссылка 2",
+    ]);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("highlights every configured explicit grammar and expanded aliases", async () => {
@@ -137,6 +168,9 @@ describe("Markdown pipeline spike", () => {
         .flatMap((chunk) => chunk.blockAnchors)
         .every((anchor) => /^[a-f0-9]{64}$/u.test(anchor.contentFingerprint)),
     ).toBe(true);
+    for (const item of first.metadata.outline) {
+      expect(first.chunks[item.chunkOrdinal]?.html).toContain(`id="${item.id}"`);
+    }
   });
 
   it("covers all chunks in every layout and keeps whole as a logical section", async () => {
@@ -282,6 +316,74 @@ describe("Markdown pipeline spike", () => {
     expect(preview.accepted).toBe(false);
     expect(preview.relevance).toBeLessThan(PIPELINE_LIMITS.autoDetectMinRelevance);
     expect(preview.elapsedMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("keeps an unknown explicit language as escaped plain code with a stable warning", async () => {
+    const success = expectPipelineSuccess(
+      await runMarkdownPipelineFromText("```unknownlang\n<script>alert(1)</script>\n```"),
+    );
+    const root = renderRoot(success);
+
+    expect(root.querySelector("code.language-plaintext")).toHaveTextContent("<script>alert(1)</script>");
+    expect(root.querySelector("script")).toBeNull();
+    expect(warningCount(success, "UNSUPPORTED_LANGUAGE")).toBe(1);
+    expect(success.chunks[0]?.diagnosticCode).toBe("HIGHLIGHT_FAILED");
+  });
+
+  it("rewrites safe local heading links and blocks unresolved fragments", async () => {
+    const success = expectPipelineSuccess(
+      await runMarkdownPipelineFromText([
+        "# Start",
+        "",
+        "[Jump](#target-heading) and [missing](#missing-heading).",
+        "",
+        "## Target Heading",
+      ].join("\n")),
+    );
+    const root = renderRoot(success);
+    const links = Array.from(root.querySelectorAll("a"));
+
+    expect(links.find((link) => link.textContent === "Jump")?.getAttribute("href")).toBe("#mdr-h-target-heading-1");
+    expect(links.find((link) => link.textContent === "missing")?.hasAttribute("href")).toBe(false);
+    expect(warningCount(success, "UNSAFE_URL_BLOCKED")).toBe(1);
+  });
+
+  it("enforces structural limits and bounds derived titles without dropping body content", async () => {
+    const limited = await runMarkdownPipelineFromText("# Heading\n\nParagraph", "limited.md", {
+      ...PIPELINE_LIMITS,
+      maxTopLevelBlocks: 1,
+    });
+    expect(limited).toMatchObject({
+      ok: false,
+      error: { code: "PIPELINE_LIMIT", limitName: "maxTopLevelBlocks", limit: 1, actual: 2 },
+    });
+
+    const longTitle = "T".repeat(40);
+    const success = expectPipelineSuccess(
+      await runMarkdownPipelineFromText(`# ${longTitle}\n\nBody remains visible.`, "title.md", {
+        ...PIPELINE_LIMITS,
+        maxTitleChars: 16,
+      }),
+    );
+    expect(success.metadata.title).toBe("T".repeat(16));
+    expect(warningCount(success, "TITLE_TRUNCATED")).toBe(1);
+    expect(renderText(success)).toContain(longTitle);
+    expect(renderText(success)).toContain("Body remains visible");
+  });
+
+  it("keeps whole selectable through bounded chunks unless one chunk is itself oversized", async () => {
+    const medium = expectPipelineSuccess(
+      await runMarkdownPipelineFromText(getFixture("medium").markdown, "medium.md"),
+    );
+    const huge = expectPipelineSuccess(
+      await runMarkdownPipelineFromText(getFixture("huge-single-node").markdown, "huge.md"),
+    );
+
+    expect(medium.metadata.layouts.whole.safeForSelection).toBe(true);
+    expect(huge.metadata.layouts.whole).toMatchObject({
+      safeForSelection: false,
+      unavailableReason: "OVERSIZED_NODE",
+    });
   });
 });
 

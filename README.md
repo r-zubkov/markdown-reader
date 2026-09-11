@@ -57,7 +57,7 @@ UI не хранит полный Markdown-корпус. Persistent source of tr
 
 Bootstrap [P00-T01: Project bootstrap](codex-spec/tasks/P00-T01-project-bootstrap.md) завершён: в репозитории есть `package.json`, `pnpm-lock.yaml`, Vite/React entry, строгие TS-конфиги, ESLint foundation, Vitest setup и Playwright config.
 
-Pipeline spike [P00-T02: Content pipeline and limits spike](codex-spec/tasks/P00-T02-content-pipeline-spike.md) завершён: добавлены prototype modules для Markdown pipeline, deterministic corpus, security/bench tests и [pipeline-spike report](docs/benchmarks/pipeline-spike.md). Лимиты пока являются P00 proposal, а не release SLA.
+Pipeline spike [P00-T02: Content pipeline and limits spike](codex-spec/tasks/P00-T02-content-pipeline-spike.md) завершён и переведён задачей [P02-T01: Production Markdown pipeline](codex-spec/tasks/P02-T01-production-markdown-pipeline.md) в production-контракт. Версия pipeline `4`, версия Worker protocol `2`; принятые лимиты, grammar policy, fallbacks и измерения находятся в [production-pipeline report](docs/benchmarks/production-pipeline.md).
 
 Storage spike [P00-T03: IndexedDB atomicity spike](codex-spec/tasks/P00-T03-storage-atomicity-spike.md) завершён: добавлены Dexie prototype schema/repository, fake-IDB integration tests, Chromium IndexedDB confirmation и [storage-atomicity report](docs/benchmarks/storage-atomicity-spike.md). P01-T02 разблокирован для production schema/repository skeleton.
 
@@ -95,6 +95,7 @@ corepack pnpm test:e2e:list
 - [project-source-of-truth.md](codex-spec/project-source-of-truth.md) — границы продукта и MVP.
 - [implementation-roadmap.md](codex-spec/implementation-roadmap.md) — последовательность вертикальных этапов.
 - [pipeline-spike.md](docs/benchmarks/pipeline-spike.md) — результаты P00-T02 по corpus, security, limits и grammar policy.
+- [production-pipeline.md](docs/benchmarks/production-pipeline.md) — принятые P02-T01 production limits, протокол, fallbacks и regression evidence.
 - [virtual-reader-spike.md](docs/benchmarks/virtual-reader-spike.md) — результаты P00-T04 по виртуализации, bounded cache, focus и browser matrix.
 - [progress-mapping-spike.md](docs/benchmarks/progress-mapping-spike.md) — результаты P00-T05 по semantic anchors, confidence policy и update pairs.
 - [tasks/](codex-spec/tasks/) — атомарные задания для реализации по одному.
@@ -102,9 +103,9 @@ corepack pnpm test:e2e:list
 ## Текущий статус
 
 - Спецификация: `COMPLETE · QA PASSED`.
-- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`.
-- Следующая разблокированная задача: `P02-T01`.
+- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 IN PROGRESS`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`.
+- Следующая разблокированная задача: `P02-T02`.
 
 ## Текущая структура репозитория
 
@@ -167,4 +168,4 @@ tools/
 e2e/
 ```
 
-Эта структура отражает bootstrap foundation и диагностические P00-T02/P00-T03/P00-T04/P00-T05 spikes. Производственные feature-модули, shadcn primitives и PWA shell добавляются последующими task-файлами.
+Структура уже включает P00 spikes, P01 walking skeleton и production pipeline P02-T01. Полный import UI, duplicate/update flow, reader modes/TOC, lifecycle hardening и release PWA завершаются последующими task-файлами.

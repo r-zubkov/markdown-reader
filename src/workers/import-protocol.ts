@@ -3,8 +3,9 @@ import type {
   PipelineMetadata,
   PipelineLimits,
 } from "@/domain/content/pipeline-types";
+import { PIPELINE_LIMITS, PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 
-export const WORKER_PROTOCOL_VERSION = 1;
+export const WORKER_PROTOCOL_VERSION = 2;
 
 export type ImportStage = "validating" | "processing" | "staging" | "finalizing";
 
@@ -12,6 +13,8 @@ export type ImportFailureCode =
   | "UNSUPPORTED_EXTENSION"
   | "FILE_TOO_LARGE"
   | "INVALID_UTF8"
+  | "PIPELINE_FAILED"
+  | "PIPELINE_LIMIT"
   | "PROTOCOL_MISMATCH"
   | "WORKER_CRASH"
   | "CANCELLED"
@@ -24,6 +27,7 @@ export type MainToImportWorker =
   | {
       readonly type: "import.request";
       readonly protocolVersion: number;
+      readonly pipelineVersion: number;
       readonly jobId: string;
       readonly file: File;
       readonly limits: PipelineLimits;
@@ -54,11 +58,18 @@ export type ImportWorkerToMain =
       readonly jobId: string;
       readonly batchOrdinal: number;
       readonly chunks: readonly PersistablePipelineChunk[];
+      readonly htmlBytes: number;
     }
   | {
       readonly type: "import.complete";
       readonly protocolVersion: number;
       readonly jobId: string;
+      readonly result: {
+        readonly pipelineVersion: number;
+        readonly contentHash: string;
+        readonly chunkCount: number;
+        readonly batchCount: number;
+      };
     }
   | {
       readonly type: "import.failure";
@@ -75,7 +86,7 @@ export type ImportWorkerToMain =
 export function isMainToImportWorker(value: unknown): value is MainToImportWorker {
   if (!isEnvelope(value) || value.protocolVersion !== WORKER_PROTOCOL_VERSION) return false;
   if (value.type === "import.cancel") return true;
-  return value.type === "import.request" && isFile(value.file) && isPipelineLimits(value.limits);
+  return value.type === "import.request" && value.pipelineVersion === PIPELINE_VERSION && isFile(value.file) && isPipelineLimits(value.limits) && pipelineLimitsEqual(value.limits, PIPELINE_LIMITS);
 }
 
 export function isImportWorkerToMain(value: unknown): value is ImportWorkerToMain {
@@ -84,10 +95,11 @@ export function isImportWorkerToMain(value: unknown): value is ImportWorkerToMai
     case "import.progress":
       return isImportStage(value.stage) && (value.ratio === undefined || isRatio(value.ratio));
     case "import.metadata":
-      return isPipelineMetadata(value.metadata);
+      return isPipelineMetadata(value.metadata) && value.metadata.pipelineVersion === PIPELINE_VERSION;
     case "import.chunkBatch":
-      return isNonNegativeInteger(value.batchOrdinal) && Array.isArray(value.chunks) && value.chunks.every(isChunk);
+      return isNonNegativeInteger(value.batchOrdinal) && Array.isArray(value.chunks) && value.chunks.every(isChunk) && isNonNegativeInteger(value.htmlBytes) && value.htmlBytes === measureChunkHtmlBytes(value.chunks) && isPipelineBatchWithinLimits(value.chunks, value.htmlBytes, PIPELINE_LIMITS);
     case "import.complete":
+      return isCompletionResult(value.result);
     case "import.cancelled":
       return true;
     case "import.failure":
@@ -108,7 +120,7 @@ function isEnvelope(value: unknown): value is Record<string, unknown> & { readon
 function isPipelineMetadata(value: unknown): value is PipelineMetadata {
   if (!isRecord(value)) return false;
   const { layouts, outline, warnings } = value;
-  if (!isHash(value.contentHash) || !isNonNegativeInteger(value.byteLength) || !isNonNegativeInteger(value.charLength) || typeof value.title !== "string" || !isNonNegativeInteger(value.chunkCount) || !Array.isArray(outline) || !isRecord(layouts) || !Array.isArray(warnings)) return false;
+  if (!isNonNegativeInteger(value.pipelineVersion) || !isHash(value.contentHash) || !isNonNegativeInteger(value.byteLength) || !isNonNegativeInteger(value.charLength) || typeof value.title !== "string" || !isNonNegativeInteger(value.chunkCount) || !Array.isArray(outline) || !isRecord(layouts) || !Array.isArray(warnings)) return false;
   return outline.every(isOutlineItem) && warnings.every(isWarning) && ["auto", "h1", "h2", "h3", "whole"].every((strategy) => isLayout(layouts[strategy]));
 }
 
@@ -125,11 +137,11 @@ function isSection(value: unknown): boolean {
 }
 
 function isWarning(value: unknown): boolean {
-  return isRecord(value) && typeof value.code === "string" && isNonNegativeInteger(value.count);
+  return isRecord(value) && typeof value.code === "string" && ["AUTO_DETECT_LOW_CONFIDENCE", "CODE_HIGHLIGHT_SKIPPED", "HIGHLIGHT_FAILED", "OVERSIZED_NODE", "RAW_HTML_ESCAPED", "TITLE_TRUNCATED", "UNSAFE_URL_BLOCKED", "UNSUPPORTED_IMAGE", "UNSUPPORTED_LANGUAGE"].includes(value.code) && isNonNegativeInteger(value.count);
 }
 
 function isChunk(value: unknown): value is PersistablePipelineChunk {
-  return isRecord(value) && isNonNegativeInteger(value.ordinal) && typeof value.html === "string" && isNonNegativeInteger(value.pipelineVersion) && isNonNegativeInteger(value.sourceStart) && isNonNegativeInteger(value.sourceEnd) && value.sourceEnd >= value.sourceStart && typeof value.estimatedCost === "number" && Number.isFinite(value.estimatedCost) && value.estimatedCost >= 0 && Array.isArray(value.headingIds) && value.headingIds.every(isNonEmptyString) && Array.isArray(value.blockAnchors) && value.blockAnchors.every(isBlockAnchor) && (value.renderState === "ready" || value.renderState === "safe-fallback") && (value.diagnosticCode === undefined || typeof value.diagnosticCode === "string" && ["FRAGMENT_FALLBACK", "HIGHLIGHT_FAILED", "OVERSIZED_NODE"].includes(value.diagnosticCode));
+  return isRecord(value) && isNonNegativeInteger(value.ordinal) && typeof value.html === "string" && value.pipelineVersion === PIPELINE_VERSION && isNonNegativeInteger(value.sourceStart) && isNonNegativeInteger(value.sourceEnd) && value.sourceEnd >= value.sourceStart && typeof value.estimatedCost === "number" && Number.isFinite(value.estimatedCost) && value.estimatedCost >= 0 && Array.isArray(value.headingIds) && value.headingIds.every(isNonEmptyString) && Array.isArray(value.blockAnchors) && value.blockAnchors.every(isBlockAnchor) && (value.renderState === "ready" || value.renderState === "safe-fallback") && (value.diagnosticCode === undefined || typeof value.diagnosticCode === "string" && ["FRAGMENT_FALLBACK", "HIGHLIGHT_FAILED", "OVERSIZED_NODE"].includes(value.diagnosticCode));
 }
 
 function isBlockAnchor(value: unknown): boolean {
@@ -137,11 +149,32 @@ function isBlockAnchor(value: unknown): boolean {
 }
 
 function isPipelineLimits(value: unknown): value is PipelineLimits {
-  return isRecord(value) && ["maxFileBytes", "targetChunkCost", "maxChunkCostBeforeFallback", "oversizedNodeCost", "maxCodeHighlightChars", "maxAutoDetectChars", "autoDetectMinRelevance", "safeDataImageBytes", "batchMaxChunks", "batchMaxHtmlBytes"].every((key) => isNonNegativeInteger(value[key]));
+  return isRecord(value) && ["maxFileBytes", "maxAstNodes", "maxAstDepth", "maxTopLevelBlocks", "maxTitleChars", "targetChunkCost", "maxChunkCostBeforeFallback", "oversizedNodeCost", "maxCodeHighlightChars", "maxAutoDetectChars", "autoDetectMinRelevance", "safeDataImageBytes", "batchMaxChunks", "batchMaxHtmlBytes"].every((key) => isNonNegativeInteger(value[key]));
+}
+
+function pipelineLimitsEqual(left: PipelineLimits, right: PipelineLimits): boolean {
+  return (Object.keys(right) as (keyof PipelineLimits)[]).every((key) => left[key] === right[key]);
+}
+
+export function measureChunkHtmlBytes(chunks: readonly PersistablePipelineChunk[]): number {
+  return chunks.reduce((total, chunk) => total + new TextEncoder().encode(chunk.html).byteLength, 0);
+}
+
+export function isPipelineBatchWithinLimits(
+  chunks: readonly PersistablePipelineChunk[],
+  htmlBytes: number,
+  limits: PipelineLimits,
+): boolean {
+  if (chunks.length === 0 || chunks.length > limits.batchMaxChunks) return false;
+  return htmlBytes <= limits.batchMaxHtmlBytes || chunks.length === 1;
+}
+
+function isCompletionResult(value: unknown): boolean {
+  return isRecord(value) && value.pipelineVersion === PIPELINE_VERSION && isHash(value.contentHash) && isNonNegativeInteger(value.chunkCount) && isNonNegativeInteger(value.batchCount);
 }
 
 function isImportStage(value: unknown): value is ImportStage { return value === "validating" || value === "processing" || value === "staging" || value === "finalizing"; }
-function isImportFailureCode(value: unknown): value is ImportFailureCode { return typeof value === "string" && ["UNSUPPORTED_EXTENSION", "FILE_TOO_LARGE", "INVALID_UTF8", "PROTOCOL_MISMATCH", "WORKER_CRASH", "CANCELLED", "DB_UNAVAILABLE", "QUOTA_EXCEEDED", "COMMIT_CONFLICT", "UNKNOWN_STORAGE_ERROR"].includes(value); }
+function isImportFailureCode(value: unknown): value is ImportFailureCode { return typeof value === "string" && ["UNSUPPORTED_EXTENSION", "FILE_TOO_LARGE", "INVALID_UTF8", "PIPELINE_FAILED", "PIPELINE_LIMIT", "PROTOCOL_MISMATCH", "WORKER_CRASH", "CANCELLED", "DB_UNAVAILABLE", "QUOTA_EXCEEDED", "COMMIT_CONFLICT", "UNKNOWN_STORAGE_ERROR"].includes(value); }
 function isSplitStrategy(value: unknown): boolean { return value === "auto" || value === "h1" || value === "h2" || value === "h3" || value === "whole"; }
 function isRatio(value: unknown): boolean { return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1; }
 function isHash(value: unknown): boolean { return typeof value === "string" && /^[a-f0-9]{64}$/u.test(value); }

@@ -19,11 +19,11 @@ Non-goals: MDX, executable/raw allowed HTML, Mermaid, math, custom plugins, full
 5. Transform raw HTML nodes to literal escaped text nodes.
 6. Derive top-level block metadata and semantic anchors.
 7. Partition whole top-level nodes into internal chunks; derive layouts.
-8. Convert each chunk to HAST via `remark-rehype`, with Russian footnote/back labels and fixed clobber prefix.
-9. Apply URL/image/resource policy; unknown/blocked resource becomes semantic fallback node.
-10. Highlight eligible code in HAST with registered grammars and size/time policy; failure leaves escaped code.
-11. Apply strict `rehype-sanitize` schema to final HAST.
-12. Serialize safe HAST to HTML, attach pipeline version and batch by measured budget.
+8. Convert the complete document to HAST via `remark-rehype`, with Russian footnote/back labels and fixed clobber prefix, so cross-chunk definitions and footnotes resolve once; partition top-level HAST by validated source positions and place generated footnote output in the final chunk.
+9. Apply URL/image/resource policy per HAST chunk; unknown/blocked resource becomes a semantic fallback node.
+10. Highlight eligible code in each HAST chunk with registered grammars and size/confidence policy; failure leaves escaped code.
+11. Apply strict `rehype-sanitize` schema to each final HAST chunk.
+12. Serialize safe HAST to HTML, attach pipeline version and batch by measured count/UTF-8 byte budgets.
 
 Sanitization must follow every transformation capable of adding nodes/attributes. No post-sanitize plugin may introduce untrusted markup.
 
@@ -50,7 +50,7 @@ Minimum semantic schema supports paragraphs, `h1–h6`, emphasis/strong/delete, 
 
 ## Output contract
 
-Metadata contains content hash, byte/char length, title, outline, layouts, chunk count, warnings summary. Chunk contains source range, cost, heading IDs, block anchors, safe HTML string, render state/diagnostic. Worker never sends DOM nodes.
+Metadata contains pipeline version, content hash, byte/char length, title, outline, layouts, chunk count and warnings summary. Chunk contains source range, cost, heading IDs, block anchors, safe HTML string and render state/diagnostic. Each worker batch contains its exact aggregate UTF-8 HTML byte count; the terminal summary repeats pipeline version, hash, chunk count and batch count. Worker never sends DOM nodes.
 
 ## Error strategy
 

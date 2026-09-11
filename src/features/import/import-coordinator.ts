@@ -1,4 +1,4 @@
-import type { DocumentRepository, RepositoryErrorCode } from "@/application/ports/document-repository";
+import type { DocumentRepository, RepositoryErrorCode, RepositoryResult } from "@/application/ports/document-repository";
 import { PIPELINE_LIMITS, PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import type { PipelineMetadata } from "@/domain/content/pipeline-types";
 import {
@@ -49,7 +49,9 @@ interface ActiveJob {
   readonly jobId: string;
   readonly versionId: string;
   readonly worker: ImportWorkerPort;
+  readonly expectedCurrentVersionId?: string;
   expectedBatchOrdinal: number;
+  receivedChunkCount: number;
   metadata?: PipelineMetadata;
   queue: Promise<void>;
   cancelling: boolean;
@@ -70,17 +72,39 @@ export class ImportCoordinator {
   ) {}
 
   public start(file: File): ImportHandle {
+    return this.startJob(file, this.createId());
+  }
+
+  public async rebuild(documentId: string): Promise<RepositoryResult<ImportHandle>> {
+    const source = await this.repository.getCurrentSourceForRebuild(documentId);
+
+    if (!source.ok) {
+      this.publish({ status: "failed", error: source.error.code });
+      return source;
+    }
+
+    const file = new File([source.value.sourceBlob], source.value.fileName, {
+      type: source.value.sourceBlob.type || "text/markdown",
+    });
+    return {
+      ok: true,
+      value: this.startJob(file, source.value.documentId, source.value.currentVersionId),
+    };
+  }
+
+  private startJob(file: File, documentId: string, expectedCurrentVersionId?: string): ImportHandle {
     if (this.activeJob !== undefined) return { cancel: () => Promise.resolve({ status: "already-terminal" }) };
     const worker = this.workerFactory();
     const job: ActiveJob = {
-      documentId: this.createId(), file, jobId: this.createId(), versionId: this.createId(), worker,
-      expectedBatchOrdinal: 0, queue: Promise.resolve(), cancelling: false, terminal: false,
+      documentId, file, jobId: this.createId(), versionId: this.createId(), worker,
+      expectedBatchOrdinal: 0, receivedChunkCount: 0, queue: Promise.resolve(), cancelling: false, terminal: false,
+      ...(expectedCurrentVersionId === undefined ? {} : { expectedCurrentVersionId }),
     };
     this.activeJob = job;
     worker.onmessage = (event) => { this.enqueue(job, () => this.receive(job, event.data)); };
     worker.onerror = () => { this.enqueue(job, () => this.fail(job, "WORKER_CRASH")); };
     this.publish({ status: "validating", file: { name: file.name, size: file.size } });
-    worker.postMessage({ type: "import.request", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: job.jobId, file, limits: PIPELINE_LIMITS });
+    worker.postMessage({ type: "import.request", protocolVersion: WORKER_PROTOCOL_VERSION, pipelineVersion: PIPELINE_VERSION, jobId: job.jobId, file, limits: PIPELINE_LIMITS });
     return { cancel: () => this.cancel(job) };
   }
 
@@ -118,7 +142,7 @@ export class ImportCoordinator {
         await this.append(job, message);
         return;
       case "import.complete":
-        await this.commit(job);
+        await this.commit(job, message);
         return;
       case "import.failure":
         await this.fail(job, message.error);
@@ -142,21 +166,34 @@ export class ImportCoordinator {
       title: metadata.title, normalizedTitle: normalizeName(metadata.title),
       contentHash: metadata.contentHash, byteLength: metadata.byteLength, charLength: metadata.charLength,
       sourceBlob: job.file, outline: metadata.outline, layouts: metadata.layouts,
-      chunkCount: metadata.chunkCount, pipelineVersion: PIPELINE_VERSION, importedAt: this.now(),
+      chunkCount: metadata.chunkCount, pipelineVersion: metadata.pipelineVersion, importedAt: this.now(),
+      ...(job.expectedCurrentVersionId === undefined ? {} : { expectedCurrentVersionId: job.expectedCurrentVersionId }),
     });
     if (!result.ok) { await this.fail(job, result.error.code); return; }
     job.metadata = metadata;
   }
 
   private async append(job: ActiveJob, message: Extract<ImportWorkerToMain, { readonly type: "import.chunkBatch" }>): Promise<void> {
-    if (job.metadata === undefined || message.batchOrdinal !== job.expectedBatchOrdinal) { await this.fail(job, "PROTOCOL_MISMATCH"); return; }
+    if (job.metadata === undefined || message.batchOrdinal !== job.expectedBatchOrdinal || message.chunks[0]?.ordinal !== job.receivedChunkCount) { await this.fail(job, "PROTOCOL_MISMATCH"); return; }
     const result = await this.repository.appendChunkBatch({ versionId: job.versionId, jobId: job.jobId, batchOrdinal: message.batchOrdinal, chunks: message.chunks });
     if (!result.ok) { await this.fail(job, result.error.code); return; }
     job.expectedBatchOrdinal += 1;
+    job.receivedChunkCount += message.chunks.length;
   }
 
-  private async commit(job: ActiveJob): Promise<void> {
-    if (job.metadata === undefined) { await this.fail(job, "PROTOCOL_MISMATCH"); return; }
+  private async commit(job: ActiveJob, message: Extract<ImportWorkerToMain, { readonly type: "import.complete" }>): Promise<void> {
+    if (job.metadata === undefined) {
+      await this.fail(job, "PROTOCOL_MISMATCH");
+      return;
+    }
+
+    if (
+      message.result.pipelineVersion !== job.metadata.pipelineVersion ||
+      message.result.contentHash !== job.metadata.contentHash ||
+      message.result.chunkCount !== job.metadata.chunkCount ||
+      message.result.chunkCount !== job.receivedChunkCount ||
+      message.result.batchCount !== job.expectedBatchOrdinal
+    ) { await this.fail(job, "PROTOCOL_MISMATCH"); return; }
     this.publish({ status: "finalizing" });
     const result = await this.repository.commitVersion({ versionId: job.versionId, jobId: job.jobId, readyAt: this.now() });
     if (!result.ok) { await this.fail(job, result.error.code); return; }

@@ -81,6 +81,14 @@ export interface CurrentDocumentSnapshot {
   readonly pipelineVersion: number;
 }
 
+export interface RebuildSourceSnapshot {
+  readonly documentId: string;
+  readonly currentVersionId: string;
+  readonly fileName: string;
+  readonly previousPipelineVersion: number;
+  readonly sourceBlob: Blob;
+}
+
 export interface ReaderStateSnapshot {
   readonly documentId: string;
   readonly readingMode: "continuous" | "sections";
@@ -119,6 +127,7 @@ export interface DocumentRepository {
   listDocuments(): Promise<RepositoryResult<readonly DocumentSummary[]>>;
   observeDocuments(listener: (result: RepositoryResult<readonly DocumentSummary[]>) => void): () => void;
   getCurrentDocument(documentId: string): Promise<RepositoryResult<CurrentDocumentSnapshot>>;
+  getCurrentSourceForRebuild(documentId: string): Promise<RepositoryResult<RebuildSourceSnapshot>>;
   getCurrentChunkWindow(input: {
     readonly documentId: string;
     readonly startOrdinal: number;

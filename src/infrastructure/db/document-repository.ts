@@ -4,6 +4,7 @@ import type {
   DocumentRepository,
   DocumentSummary,
   ReaderChunk,
+  RebuildSourceSnapshot,
   ReaderStateSnapshot,
   RepositoryErrorCode,
   RepositoryResult,
@@ -11,13 +12,15 @@ import type {
   SemanticAnchorSnapshot,
   StageDocumentVersionInput,
 } from "@/application/ports/document-repository";
+import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
+import type { BlockAnchor } from "@/domain/content/pipeline-types";
 import {
   StorageAtomicitySpikeRepository,
   type StorageSpikeResult,
 } from "@/infrastructure/db/storage-atomicity-spike";
 
 export const DB_SCHEMA_VERSION = 3;
-export const PIPELINE_VERSION = 3;
+export { PIPELINE_VERSION };
 export const MARKDOWN_READER_DATABASE_NAME = "markdown-reader";
 
 /** The sole production persistence adapter. Feature code only sees DocumentRepository. */
@@ -31,10 +34,13 @@ export class DexieDocumentRepository implements DocumentRepository {
   public close(): void { this.storage.close(); }
 
   public async stageVersion(input: StageDocumentVersionInput): Promise<RepositoryResult<void>> {
+    if (input.pipelineVersion !== PIPELINE_VERSION) return failure("STALE_DERIVED");
     return discard(await this.storage.stageVersion(input));
   }
 
   public async appendChunkBatch(input: Parameters<DocumentRepository["appendChunkBatch"]>[0]): Promise<RepositoryResult<void>> {
+    if (input.chunks.some((chunk) => chunk.pipelineVersion !== PIPELINE_VERSION)) return failure("STALE_DERIVED");
+    if (input.chunks.some((chunk) => !isPersistableChunk(chunk))) return failure("INVALID_PERSISTED_RECORD");
     return discard(await this.storage.appendChunkBatch(input));
   }
 
@@ -74,6 +80,22 @@ export class DexieDocumentRepository implements DocumentRepository {
       return failure("INVALID_PERSISTED_RECORD");
     }
     return success({ documentId: current.documentId, versionId: current.id, title: current.title, chunkCount: current.chunkCount, pipelineVersion: current.pipelineVersion });
+  }
+
+  public async getCurrentSourceForRebuild(documentId: string): Promise<RepositoryResult<RebuildSourceSnapshot>> {
+    const result = await this.storage.readCurrentSourceBlobForRebuild(documentId);
+    if (!result.ok) return failure(result.error.code);
+    const source = result.value;
+    if (!nonEmpty(source.documentId) || !nonEmpty(source.versionId) || !nonEmpty(source.fileName) || !nonNegative(source.pipelineVersion) || !isBlobLike(source.sourceBlob)) {
+      return failure("INVALID_PERSISTED_RECORD");
+    }
+    return success({
+      currentVersionId: source.versionId,
+      documentId: source.documentId,
+      fileName: source.fileName,
+      previousPipelineVersion: source.pipelineVersion,
+      sourceBlob: source.sourceBlob,
+    });
   }
 
   public async getCurrentChunkWindow(input: Parameters<DocumentRepository["getCurrentChunkWindow"]>[0]): Promise<RepositoryResult<readonly ReaderChunk[]>> {
@@ -142,17 +164,26 @@ function isRepositoryErrorCode(value: string): value is RepositoryErrorCode { re
 function isDocumentSummary(value: DocumentSummary): boolean {
   return nonEmpty(value.documentId) && nonEmpty(value.currentVersionId) && nonEmpty(value.title) && nonEmpty(value.fileName) && hash(value.contentHash) && nonNegative(value.activityAt) && nonNegative(value.chunkCount);
 }
+function isPersistableChunk(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  if (!nonNegative(value.sourceStart) || !nonNegative(value.sourceEnd)) return false;
+  const headingIds = value.headingIds;
+  const blockAnchors = value.blockAnchors;
+  const sourceStart = value.sourceStart;
+  const sourceEnd = value.sourceEnd;
+  return nonNegative(value.ordinal) && typeof value.html === "string" && sourceEnd >= sourceStart && typeof value.estimatedCost === "number" && Number.isFinite(value.estimatedCost) && value.estimatedCost >= 0 && Array.isArray(headingIds) && headingIds.every(nonEmpty) && Array.isArray(blockAnchors) && blockAnchors.every((anchor) => isBlockAnchor(anchor, sourceStart, sourceEnd)) && (value.renderState === "ready" || value.renderState === "safe-fallback") && (value.diagnosticCode === undefined || typeof value.diagnosticCode === "string" && ["FRAGMENT_FALLBACK", "HIGHLIGHT_FAILED", "OVERSIZED_NODE"].includes(value.diagnosticCode));
+}
 function isChunkWindow(chunks: readonly { readonly ordinal: number; readonly html: string; readonly pipelineVersion: number; readonly sourceStart: number; readonly sourceEnd: number; readonly blockAnchors: readonly unknown[]; }[], input: { readonly startOrdinal: number; readonly endOrdinalInclusive: number; readonly pipelineVersion: number }): boolean {
   if (!nonNegative(input.startOrdinal) || !nonNegative(input.endOrdinalInclusive) || input.endOrdinalInclusive < input.startOrdinal) return false;
   if (chunks.length !== input.endOrdinalInclusive - input.startOrdinal + 1) return false;
   let expectedOrdinal = input.startOrdinal;
   let previousEnd = -1;
   return chunks.every((chunk) => {
-    const valid = chunk.ordinal === expectedOrdinal && typeof chunk.html === "string" && chunk.pipelineVersion === input.pipelineVersion && nonNegative(chunk.sourceStart) && nonNegative(chunk.sourceEnd) && chunk.sourceEnd >= chunk.sourceStart && chunk.sourceStart >= previousEnd && chunk.blockAnchors.every(isBlockAnchor);
+    const valid = chunk.ordinal === expectedOrdinal && typeof chunk.html === "string" && chunk.pipelineVersion === input.pipelineVersion && nonNegative(chunk.sourceStart) && nonNegative(chunk.sourceEnd) && chunk.sourceEnd >= chunk.sourceStart && chunk.sourceStart >= previousEnd && chunk.blockAnchors.every((anchor) => isBlockAnchor(anchor, chunk.sourceStart, chunk.sourceEnd));
     expectedOrdinal += 1; previousEnd = chunk.sourceEnd; return valid;
   });
 }
-function isBlockAnchor(value: unknown): value is { readonly blockId: string; readonly blockOrdinalWithinHeading: number; readonly headingPathKey: string } { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.blockId) && nonNegative(record.blockOrdinalWithinHeading) && nonEmpty(record.headingPathKey); }
+function isBlockAnchor(value: unknown, chunkStart: number, chunkEnd: number): value is BlockAnchor { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.blockId) && hash(record.contentFingerprint) && nonNegative(record.blockOrdinalWithinHeading) && nonEmpty(record.headingPathKey) && nonNegative(record.sourceStart) && nonNegative(record.sourceEnd) && record.sourceStart >= chunkStart && record.sourceEnd >= record.sourceStart && record.sourceEnd <= chunkEnd; }
 function isReaderState(value: unknown): value is ReaderStateSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.documentId) && (record.readingMode === "continuous" || record.readingMode === "sections") && (record.modeOrigin === "auto" || record.modeOrigin === "user") && ["auto", "h1", "h2", "h3", "whole"].includes(record.splitStrategy as string) && (record.anchor === undefined || isSemanticAnchor(record.anchor)) && ratio(record.progressRatio) && nonNegative(record.updatedAt); }
 function isSemanticAnchor(value: unknown): value is SemanticAnchorSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.versionId) && nonEmpty(record.headingPathKey) && nonEmpty(record.blockId) && nonNegative(record.blockOrdinalWithinHeading) && ratio(record.intraBlockRatio) && ratio(record.overallSourceRatio); }
 function isPreferences(value: unknown): value is AppPreferencesSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return (record.theme === "system" || record.theme === "light" || record.theme === "dark") && typeof record.remoteImagesEnabled === "boolean" && typeof record.desktopTocCollapsed === "boolean" && nonNegative(record.updatedAt); }
@@ -160,6 +191,8 @@ function nonEmpty(value: unknown): value is string { return typeof value === "st
 function hash(value: unknown): value is string { return typeof value === "string" && /^[a-f0-9]{64}$/u.test(value); }
 function nonNegative(value: unknown): value is number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0; }
 function ratio(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1; }
+function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
+function isBlobLike(value: unknown): value is Blob { return typeof value === "object" && value !== null && "size" in value && typeof value.size === "number" && "arrayBuffer" in value && typeof value.arrayBuffer === "function"; }
 
 /** The brand is applied only after this adapter has validated a current ready chunk. */
 function makeSanitizedHtml(value: string, pipelineVersion: number): SanitizedHtml {

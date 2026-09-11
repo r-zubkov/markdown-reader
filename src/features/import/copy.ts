@@ -21,6 +21,8 @@ export const importCopy = {
     UNSUPPORTED_EXTENSION: "Выберите файл с расширением .md.",
     FILE_TOO_LARGE: "Файл слишком большой.",
     INVALID_UTF8: "Файл должен быть в UTF-8.",
+    PIPELINE_FAILED: "Не удалось безопасно обработать Markdown-файл.",
+    PIPELINE_LIMIT: "Структура Markdown-файла превышает безопасный предел.",
     PROTOCOL_MISMATCH: "Версии приложения несовместимы. Перезагрузите страницу.",
     WORKER_CRASH: "Обработка прервана. Попробуйте снова.",
     CANCELLED: "Импорт отменён.",

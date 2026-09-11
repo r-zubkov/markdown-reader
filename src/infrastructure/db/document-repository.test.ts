@@ -78,6 +78,38 @@ describe("DexieDocumentRepository", () => {
     repository.close();
   });
 
+  it("rejects staging output from a stale pipeline", async () => {
+    const repository = createRepository("pipeline-stale");
+    const stale = createStorageStageInput({ chunkCount: 1, versionId: crypto.randomUUID() });
+    const staleInput = { ...stale, pipelineVersion: PIPELINE_VERSION - 1 };
+    expect(await repository.stageVersion(staleInput)).toMatchObject({
+      ok: false,
+      error: { code: "STALE_DERIVED" },
+    });
+    repository.close();
+  });
+
+  it("rejects malformed anchor provenance before persisting a chunk batch", async () => {
+    const repository = createRepository("invalid-anchor");
+    const staged = createStorageStageInput({ chunkCount: 1, versionId: crypto.randomUUID() });
+    const input = { ...staged, pipelineVersion: PIPELINE_VERSION };
+    const chunk = createStorageChunks(1, { pipelineVersion: PIPELINE_VERSION })[0];
+    if (chunk === undefined) throw new Error("Expected fixture chunk.");
+    const malformed = {
+      ...chunk,
+      blockAnchors: chunk.blockAnchors.map((anchor) => ({ ...anchor, contentFingerprint: "not-a-hash" })),
+    };
+
+    expect(await repository.stageVersion(input)).toEqual({ ok: true, value: undefined });
+    expect(await repository.appendChunkBatch({
+      batchOrdinal: 0,
+      chunks: [malformed],
+      jobId: input.jobId,
+      versionId: input.versionId,
+    })).toMatchObject({ ok: false, error: { code: "INVALID_PERSISTED_RECORD" } });
+    repository.close();
+  });
+
   it("persists preference changes after the IndexedDB source of truth accepts them", async () => {
     const repository = createRepository("preferences");
     expect(await repository.getPreferences()).toMatchObject({ ok: true, value: { theme: "system" } });

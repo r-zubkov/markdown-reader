@@ -86,7 +86,7 @@ sequenceDiagram
 1. UI pre-validates one `.md`; worker performs authoritative byte length and fatal UTF-8 decode.
 2. Worker computes SHA-256 and metadata. Coordinator checks exact ready-version hash before finalizing.
 3. If user decision is needed, worker result/job remains controlled staging; cancel removes it.
-4. Worker sends bounded batches with monotonic `batchOrdinal`; repository rejects wrong job/protocol/order.
+4. Worker sends bounded batches with monotonic `batchOrdinal` and exact UTF-8 `htmlBytes`; the coordinator rejects wrong job/protocol/version/order/size and a terminal count/hash mismatch.
 5. Commit transaction creates/updates Document, marks version ready, sets `currentVersionId`, maps reader state and publishes library visibility.
 6. Previous ready version is deleted only in post-commit cleanup. A failed cleanup is recoverable garbage, not data loss.
 
@@ -108,15 +108,15 @@ Every message contains `protocolVersion` and `jobId`.
 
 ```ts
 type MainToWorker =
-  | { type: 'import.request'; protocolVersion: number; jobId: string; file: File; limits: PipelineLimits }
+  | { type: 'import.request'; protocolVersion: number; pipelineVersion: number; jobId: string; file: File; limits: PipelineLimits }
   | { type: 'import.continue'; protocolVersion: number; jobId: string; decision: ImportDecision }
   | { type: 'import.cancel'; protocolVersion: number; jobId: string };
 
 type WorkerToMain =
   | { type: 'import.progress'; protocolVersion: number; jobId: string; stage: ImportStage; ratio?: number }
   | { type: 'import.metadata'; protocolVersion: number; jobId: string; metadata: ParsedMetadata }
-  | { type: 'import.chunkBatch'; protocolVersion: number; jobId: string; batchOrdinal: number; chunks: PersistableChunk[] }
-  | { type: 'import.complete'; protocolVersion: number; jobId: string; result: PipelineResult }
+  | { type: 'import.chunkBatch'; protocolVersion: number; jobId: string; batchOrdinal: number; chunks: PersistableChunk[]; htmlBytes: number }
+  | { type: 'import.complete'; protocolVersion: number; jobId: string; result: { pipelineVersion: number; contentHash: string; chunkCount: number; batchCount: number } }
   | { type: 'import.failure'; protocolVersion: number; jobId: string; error: ImportError }
   | { type: 'import.cancelled'; protocolVersion: number; jobId: string };
 ```

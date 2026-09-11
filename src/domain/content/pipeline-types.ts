@@ -1,6 +1,12 @@
 export type SplitStrategy = "auto" | "h1" | "h2" | "h3" | "whole";
 
-export type PipelineFailureCode = "FILE_TOO_LARGE" | "INVALID_UTF8";
+export type PipelineFailureCode =
+  | "FILE_TOO_LARGE"
+  | "INVALID_UTF8"
+  | "PIPELINE_FAILED"
+  | "PIPELINE_LIMIT";
+
+export type PipelineLimitName = "maxAstDepth" | "maxAstNodes" | "maxTopLevelBlocks";
 
 export type PipelineWarningCode =
   | "AUTO_DETECT_LOW_CONFIDENCE"
@@ -8,8 +14,10 @@ export type PipelineWarningCode =
   | "HIGHLIGHT_FAILED"
   | "OVERSIZED_NODE"
   | "RAW_HTML_ESCAPED"
+  | "TITLE_TRUNCATED"
   | "UNSAFE_URL_BLOCKED"
-  | "UNSUPPORTED_IMAGE";
+  | "UNSUPPORTED_IMAGE"
+  | "UNSUPPORTED_LANGUAGE";
 
 export type ChunkDiagnosticCode =
   | "FRAGMENT_FALLBACK"
@@ -18,6 +26,10 @@ export type ChunkDiagnosticCode =
 
 export interface PipelineLimits {
   readonly maxFileBytes: number;
+  readonly maxAstNodes: number;
+  readonly maxAstDepth: number;
+  readonly maxTopLevelBlocks: number;
+  readonly maxTitleChars: number;
   readonly targetChunkCost: number;
   readonly maxChunkCostBeforeFallback: number;
   readonly oversizedNodeCost: number;
@@ -31,6 +43,7 @@ export interface PipelineLimits {
 
 export interface PipelineFailure {
   readonly code: PipelineFailureCode;
+  readonly limitName?: PipelineLimitName;
   readonly limit?: number;
   readonly actual?: number;
 }
@@ -108,6 +121,7 @@ export interface PipelineStageTimings {
 }
 
 export interface PipelineMetadata {
+  readonly pipelineVersion: number;
   readonly contentHash: string;
   readonly byteLength: number;
   readonly charLength: number;
