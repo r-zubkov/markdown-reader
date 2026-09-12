@@ -5,37 +5,44 @@ import { Button } from "./button";
 
 interface FileDropFieldProps {
   accept: string;
+  autoFocusButton?: boolean;
   buttonLabel: string;
   description: string;
   inputTestId?: string;
   label: string;
   onFileSelected: (file: File) => void;
+  onFilesSelected?: (files: readonly File[]) => void;
   selectedFileName?: string | undefined;
   selectedLabel: string;
 }
 
 export function FileDropField({
   accept,
+  autoFocusButton = false,
   buttonLabel,
   description,
   inputTestId,
   label,
   onFileSelected,
+  onFilesSelected,
   selectedFileName,
   selectedLabel,
 }: FileDropFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function selectFirstFile(files: FileList | null) {
-    const file = files?.[0];
-    if (file) {
-      onFileSelected(file);
+  function selectFiles(files: FileList | null) {
+    const selection = files === null ? [] : Array.from(files);
+    if (onFilesSelected !== undefined) {
+      onFilesSelected(selection);
+      return;
     }
+    const file = selection[0];
+    if (file !== undefined) onFileSelected(file);
   }
 
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    selectFirstFile(event.dataTransfer.files);
+    selectFiles(event.dataTransfer.files);
   }
 
   return (
@@ -55,12 +62,14 @@ export function FileDropField({
         className="mobile-platform-spike__visually-hidden"
         data-testid={inputTestId}
         onChange={(event) => {
-          selectFirstFile(event.currentTarget.files);
+          selectFiles(event.currentTarget.files);
         }}
         ref={inputRef}
+        tabIndex={-1}
         type="file"
       />
       <Button
+        autoFocus={autoFocusButton}
         onPress={() => {
           inputRef.current?.click();
         }}

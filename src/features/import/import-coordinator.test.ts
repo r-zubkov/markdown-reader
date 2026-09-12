@@ -37,7 +37,7 @@ describe("ImportCoordinator", () => {
     await settle();
 
     expect(repository.abortCalls).toEqual([worker.jobId()]);
-    expect(states.at(-1)).toEqual({ status: "failed", error: "PROTOCOL_MISMATCH" });
+    expect(states.at(-1)).toEqual({ status: "failed", error: "PROTOCOL_MISMATCH", retry: "reload" });
   });
 
   it("makes cancel idempotent and removes a staged version after the worker acknowledgement", async () => {
@@ -70,7 +70,7 @@ describe("ImportCoordinator", () => {
 
     expect(repository.commitCalls).toBe(0);
     expect(repository.abortCalls).toEqual([worker.jobId()]);
-    expect(states.at(-1)).toEqual({ status: "failed", error: "PROTOCOL_MISMATCH" });
+    expect(states.at(-1)).toEqual({ status: "failed", error: "PROTOCOL_MISMATCH", retry: "reload" });
   });
 
   it("rebuilds stale derived data from the repository source under a current-version precondition", async () => {

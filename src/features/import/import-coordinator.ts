@@ -17,6 +17,7 @@ export interface FileSummary {
 }
 
 export type ImportErrorCode = ImportFailureCode | RepositoryErrorCode;
+export type RetryKind = "select-file" | "retry" | "free-space" | "reload";
 
 export type ImportUiState =
   | { readonly status: "idle" }
@@ -25,7 +26,7 @@ export type ImportUiState =
   | { readonly status: "cancelling" }
   | { readonly status: "finalizing" }
   | { readonly status: "succeeded"; readonly documentId: string }
-  | { readonly status: "failed"; readonly error: ImportErrorCode }
+  | { readonly status: "failed"; readonly error: ImportErrorCode; readonly retry: RetryKind }
   | { readonly status: "cancelled" };
 
 export interface ImportHandle {
@@ -79,7 +80,7 @@ export class ImportCoordinator {
     const source = await this.repository.getCurrentSourceForRebuild(documentId);
 
     if (!source.ok) {
-      this.publish({ status: "failed", error: source.error.code });
+      this.publish({ status: "failed", error: source.error.code, retry: retryKind(source.error.code) });
       return source;
     }
 
@@ -233,8 +234,15 @@ export class ImportCoordinator {
     job.worker.terminate();
     await this.repository.abortVersion(job.jobId);
     if (this.activeJob === job) this.activeJob = undefined;
-    this.publish({ status: "failed", error });
+    this.publish({ status: "failed", error, retry: retryKind(error) });
   }
+}
+
+function retryKind(error: ImportErrorCode): RetryKind {
+  if (error === "UNSUPPORTED_EXTENSION" || error === "FILE_TOO_LARGE" || error === "INVALID_UTF8") return "select-file";
+  if (error === "QUOTA_EXCEEDED") return "free-space";
+  if (error === "PROTOCOL_MISMATCH") return "reload";
+  return "retry";
 }
 
 function normalizeName(value: string): string {

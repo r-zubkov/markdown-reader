@@ -11,6 +11,12 @@ export const importCopy = {
   cancelled: "Импорт отменён.",
   succeeded: "Документ готов.",
   open: "Открыть",
+  done: "Готово",
+  retry: "Повторить",
+  close: "Закрыть",
+  title: "Импорт Markdown-файла",
+  runningHint: "Отмена завершится без изменений в библиотеке.",
+  noPartial: "Готовые документы в библиотеке не изменены.",
   stages: {
     validating: "Проверяем файл…",
     processing: "Обрабатываем Markdown…",
@@ -18,6 +24,7 @@ export const importCopy = {
     finalizing: "Завершаем импорт…",
   } as const satisfies Record<ImportStage, string>,
   errors: {
+    MULTIPLE_FILES: "Выберите ровно один файл .md.",
     UNSUPPORTED_EXTENSION: "Выберите файл с расширением .md.",
     FILE_TOO_LARGE: "Файл слишком большой.",
     INVALID_UTF8: "Файл должен быть в UTF-8.",
@@ -34,5 +41,5 @@ export const importCopy = {
     DOCUMENT_NOT_FOUND: "Документ не найден.",
     INVALID_PERSISTED_RECORD: "Данные хранилища повреждены.",
     UNKNOWN_STORAGE_ERROR: "Не удалось сохранить документ.",
-  } as const satisfies Record<ImportErrorCode, string>,
+  } as const satisfies Record<ImportErrorCode | "MULTIPLE_FILES", string>,
 } as const;

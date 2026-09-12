@@ -104,8 +104,8 @@ corepack pnpm test:e2e:list
 
 - Спецификация: `COMPLETE · QA PASSED`.
 - Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 IN PROGRESS`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`.
-- Следующая разблокированная задача: `P02-T02`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`.
+- Следующая разблокированная задача: `P02-T03`.
 
 ## Текущая структура репозитория
 
@@ -168,4 +168,4 @@ tools/
 e2e/
 ```
 
-Структура уже включает P00 spikes, P01 walking skeleton и production pipeline P02-T01. Полный import UI, duplicate/update flow, reader modes/TOC, lifecycle hardening и release PWA завершаются последующими task-файлами.
+Структура уже включает P00 spikes, P01 walking skeleton, production pipeline P02-T01 и полный import UI P02-T02. Duplicate/update flow, reader modes/TOC, lifecycle hardening и release PWA завершаются последующими task-файлами.

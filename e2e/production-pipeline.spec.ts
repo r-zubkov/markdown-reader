@@ -30,12 +30,13 @@ test("production worker imports and renders the supported semantic/security corp
   ].join("\n");
 
   await page.goto("/");
+  await page.getByTestId("library-import-trigger").click();
   await page.getByTestId("import-file-input").setInputFiles({
     name: "production-corpus.md",
     mimeType: "text/markdown",
     buffer: Buffer.from(markdown),
   });
-  await expect(page.getByText("Документ готов.")).toBeVisible();
+  await expect(page.locator(".import-overlay__notice")).toContainText("Документ готов.");
   await page.getByRole("link", { name: /Production pipeline/ }).click();
 
   await expect(page.locator(".reader-content h1")).toContainText("Production pipeline");
