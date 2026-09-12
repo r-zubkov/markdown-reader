@@ -3,6 +3,7 @@ import type {
   CurrentDocumentSnapshot,
   DocumentRepository,
   DocumentSummary,
+  ImportIdentityMatches,
   ReaderChunk,
   RebuildSourceSnapshot,
   ReaderStateSnapshot,
@@ -54,6 +55,20 @@ export class DexieDocumentRepository implements DocumentRepository {
 
   public async cleanupAbandonedStaging(input: Parameters<DocumentRepository["cleanupAbandonedStaging"]>[0]): Promise<RepositoryResult<void>> {
     return discard(await this.storage.cleanupAbandonedStaging(input));
+  }
+
+  public async findImportIdentityMatches(input: Parameters<DocumentRepository["findImportIdentityMatches"]>[0]): Promise<RepositoryResult<ImportIdentityMatches>> {
+    const result = await this.storage.findReadyImportIdentityMatches(input);
+    if (!result.ok) return failure(result.error.code);
+    const exactDuplicates = result.value.exactDuplicates.filter(isIdentityMatch);
+    const possibleUpdates = result.value.possibleUpdates.filter(isIdentityMatch);
+    if (exactDuplicates.length !== result.value.exactDuplicates.length || possibleUpdates.length !== result.value.possibleUpdates.length) {
+      return failure("INVALID_PERSISTED_RECORD");
+    }
+    return success({
+      exactDuplicates: exactDuplicates.map(toIdentityMatch),
+      possibleUpdates: possibleUpdates.map(toIdentityMatch),
+    });
   }
 
   public async listDocuments(): Promise<RepositoryResult<readonly DocumentSummary[]>> {
@@ -163,6 +178,12 @@ function failure(storageCode: string): RepositoryResult<never> {
 function isRepositoryErrorCode(value: string): value is RepositoryErrorCode { return ["DB_UNAVAILABLE", "MIGRATION_FAILED", "STALE_DERIVED", "QUOTA_EXCEEDED", "COMMIT_CONFLICT", "DOCUMENT_NOT_FOUND", "INVALID_PERSISTED_RECORD", "UNKNOWN_STORAGE_ERROR"].includes(value); }
 function isDocumentSummary(value: DocumentSummary): boolean {
   return nonEmpty(value.documentId) && nonEmpty(value.currentVersionId) && nonEmpty(value.title) && nonEmpty(value.fileName) && hash(value.contentHash) && nonNegative(value.activityAt) && nonNegative(value.chunkCount);
+}
+function isIdentityMatch(value: { readonly documentId: unknown; readonly currentVersionId: unknown; readonly title: unknown; readonly fileName: unknown }): value is ImportIdentityMatches["exactDuplicates"][number] {
+  return nonEmpty(value.documentId) && nonEmpty(value.currentVersionId) && nonEmpty(value.title) && nonEmpty(value.fileName);
+}
+function toIdentityMatch(value: ImportIdentityMatches["exactDuplicates"][number]): ImportIdentityMatches["exactDuplicates"][number] {
+  return { currentVersionId: value.currentVersionId, documentId: value.documentId, fileName: value.fileName, title: value.title };
 }
 function isPersistableChunk(value: unknown): boolean {
   if (!isRecord(value)) return false;

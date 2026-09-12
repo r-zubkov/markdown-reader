@@ -26,4 +26,19 @@ describe("importControllerReducer", () => {
       status: "failed", error: "MULTIPLE_FILES", retry: "select-file",
     });
   });
+
+  it("moves a decision handoff to its terminal result and accepts an explicit cancellation", () => {
+    const decision: ImportControllerVisibleState = {
+      status: "decision",
+      context: {
+        candidates: [{ currentVersionId: "version-1", documentId: "document-1", fileName: "guide.md", title: "Guide" }],
+        file: { name: "guide.md", size: 12 },
+        kind: "possible-update",
+        title: "Guide revised",
+      },
+    };
+    const finalizing = importControllerReducer(decision, { type: "finalizing" });
+    expect(importControllerReducer(finalizing, { type: "succeeded", documentId: "document-2" })).toEqual({ status: "succeeded", documentId: "document-2" });
+    expect(importControllerReducer(decision, { type: "cancelled" })).toEqual({ status: "cancelled" });
+  });
 });

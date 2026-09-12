@@ -29,6 +29,18 @@ export interface DocumentSummary {
   readonly contentHash: string;
 }
 
+export interface ImportIdentityMatch {
+  readonly documentId: string;
+  readonly currentVersionId: string;
+  readonly title: string;
+  readonly fileName: string;
+}
+
+export interface ImportIdentityMatches {
+  readonly exactDuplicates: readonly ImportIdentityMatch[];
+  readonly possibleUpdates: readonly ImportIdentityMatch[];
+}
+
 export interface StageDocumentVersionInput {
   readonly documentId: string;
   readonly versionId: string;
@@ -124,6 +136,11 @@ export interface DocumentRepository {
     readonly olderThan: number;
     readonly activeJobIds?: ReadonlySet<string>;
   }): Promise<RepositoryResult<void>>;
+  findImportIdentityMatches(input: {
+    readonly contentHash: string;
+    readonly normalizedTitle: string;
+    readonly normalizedFileName: string;
+  }): Promise<RepositoryResult<ImportIdentityMatches>>;
   listDocuments(): Promise<RepositoryResult<readonly DocumentSummary[]>>;
   observeDocuments(listener: (result: RepositoryResult<readonly DocumentSummary[]>) => void): () => void;
   getCurrentDocument(documentId: string): Promise<RepositoryResult<CurrentDocumentSnapshot>>;

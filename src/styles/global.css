@@ -126,6 +126,12 @@ a { color: var(--accent); }
 .import-overlay__file { color: var(--text); overflow-wrap: anywhere; font-weight: 700; }
 .import-overlay__failure { color: var(--danger); }
 .import-overlay__failure p + p { color: var(--text-muted); }
+.import-overlay__decision { display: grid; gap: 12px; color: var(--text-muted); line-height: 1.5; }
+.import-overlay__decision p, .import-overlay__decision ul { margin: 0; }
+.import-overlay__decision ul { display: grid; gap: 8px; padding: 0; list-style: none; }
+.import-overlay__decision li { display: grid; gap: 4px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-raised); }
+.import-overlay__decision small { display: block; color: var(--text-muted); overflow-wrap: anywhere; }
+.import-overlay__decision-link { display: inline-flex; min-height: 44px; align-items: center; overflow-wrap: anywhere; font-weight: 700; }
 .import-overlay__progress progress { inline-size: 100%; accent-color: var(--accent); }
 .import-progress { min-height: 6px; border-radius: 999px; background: var(--border); }
 .import-progress--indeterminate { background: linear-gradient(90deg, var(--border), var(--accent), var(--border)); background-size: 200% 100%; animation: import-progress 1.2s linear infinite; }

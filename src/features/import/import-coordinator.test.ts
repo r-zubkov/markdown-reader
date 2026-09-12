@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { DocumentRepository, RebuildSourceSnapshot, RepositoryResult, StageDocumentVersionInput } from "@/application/ports/document-repository";
+import type { DocumentRepository, ImportIdentityMatches, RebuildSourceSnapshot, RepositoryResult, StageDocumentVersionInput } from "@/application/ports/document-repository";
 import { runMarkdownPipeline } from "@/domain/content/markdown-pipeline";
 import { PIPELINE_LIMITS, PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import { ImportCoordinator, type ImportWorkerPort, type ImportUiState } from "./import-coordinator";
@@ -103,6 +103,65 @@ describe("ImportCoordinator", () => {
     });
     expect(states.at(-1)).toEqual({ status: "succeeded", documentId: "existing-document" });
   });
+
+  it("stops an exact duplicate before staging and offers the existing document", async () => {
+    const repository = new MemoryRepository();
+    repository.matches = { exactDuplicates: [candidate("existing-1")], possibleUpdates: [] };
+    const worker = new FakeWorker();
+    const states: ImportUiState[] = [];
+    const coordinator = new ImportCoordinator(repository, () => worker, (state) => states.push(state), () => 100, ids());
+    const file = new File(["# Existing"], "renamed.md");
+    const pipeline = await pipelineFor(file);
+    coordinator.start(file);
+    worker.emit({ type: "import.metadata", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: worker.jobId(), metadata: pipeline.metadata });
+    await settle();
+
+    expect(repository.stage).toHaveLength(0);
+    expect(repository.commitCalls).toBe(0);
+    expect(worker.terminated).toBe(true);
+    expect(states.at(-1)).toEqual({ status: "decision", context: { kind: "exact-duplicate", duplicates: [candidate("existing-1")] } });
+  });
+
+  it("keeps a possible update paused until Separate resumes the normal atomic commit", async () => {
+    const repository = new MemoryRepository();
+    repository.matches = { exactDuplicates: [], possibleUpdates: [candidate("existing-1")] };
+    const worker = new FakeWorker();
+    const states: ImportUiState[] = [];
+    const coordinator = new ImportCoordinator(repository, () => worker, (state) => states.push(state), () => 100, ids());
+    const file = new File(["# Existing\n\nChanged."], "existing.md");
+    const pipeline = await pipelineFor(file);
+    coordinator.start(file);
+    worker.emit({ type: "import.metadata", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: worker.jobId(), metadata: pipeline.metadata });
+    await settle();
+    for (const batch of pipeline.batches) worker.emit({ type: "import.chunkBatch", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: worker.jobId(), batchOrdinal: batch.batchOrdinal, chunks: batch.chunks, htmlBytes: batch.htmlBytes });
+    worker.emit({ type: "import.complete", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: worker.jobId(), result: { pipelineVersion: PIPELINE_VERSION, contentHash: pipeline.metadata.contentHash, chunkCount: pipeline.metadata.chunkCount, batchCount: pipeline.batches.length } });
+    await settle();
+    expect(repository.stage).toHaveLength(0);
+
+    await coordinator.continueSeparately();
+    await settle();
+    expect(repository.stage[0]?.documentId).toBe("document-id");
+    expect(repository.commitCalls).toBe(1);
+    expect(states.at(-1)).toEqual({ status: "succeeded", documentId: "document-id" });
+  });
+
+  it("records an explicit replace handoff without staging or changing the target", async () => {
+    const repository = new MemoryRepository();
+    repository.matches = { exactDuplicates: [], possibleUpdates: [candidate("existing-1")] };
+    const worker = new FakeWorker();
+    const states: ImportUiState[] = [];
+    const coordinator = new ImportCoordinator(repository, () => worker, (state) => states.push(state), () => 100, ids());
+    const file = new File(["# Existing"], "existing.md");
+    const pipeline = await pipelineFor(file);
+    coordinator.start(file);
+    worker.emit({ type: "import.metadata", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: worker.jobId(), metadata: pipeline.metadata });
+    await settle();
+    coordinator.handoffReplace("existing-1");
+
+    expect(repository.stage).toHaveLength(0);
+    expect(repository.commitCalls).toBe(0);
+    expect(states.at(-1)).toEqual({ status: "replace-handoff", candidate: candidate("existing-1") });
+  });
 });
 
 class FakeWorker implements ImportWorkerPort {
@@ -124,12 +183,14 @@ class MemoryRepository implements DocumentRepository {
   public readonly abortCalls: string[] = [];
   public readonly stage: StageDocumentVersionInput[] = [];
   public commitCalls = 0;
+  public matches: ImportIdentityMatches = { exactDuplicates: [], possibleUpdates: [] };
   public constructor(private readonly rebuildSource?: RebuildSourceSnapshot) {}
   public stageVersion(input: StageDocumentVersionInput): Promise<RepositoryResult<void>> { this.stage.push(input); return Promise.resolve(ok(undefined)); }
   public appendChunkBatch(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public commitVersion(input: { readonly versionId: string; readonly jobId: string; readonly readyAt: number }): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string }>> { this.commitCalls += 1; const staged = this.stage[0]; if (staged?.versionId !== input.versionId || staged.jobId !== input.jobId) return Promise.resolve(fail("UNKNOWN_STORAGE_ERROR")); return Promise.resolve(ok({ documentId: staged.documentId, versionId: input.versionId })); }
   public abortVersion(jobId: string): Promise<RepositoryResult<void>> { this.abortCalls.push(jobId); return Promise.resolve(ok(undefined)); }
   public cleanupAbandonedStaging(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public findImportIdentityMatches(): Promise<RepositoryResult<ImportIdentityMatches>> { return Promise.resolve(ok(this.matches)); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
   public getCurrentDocument(): Promise<RepositoryResult<never>> { return Promise.resolve(fail("DOCUMENT_NOT_FOUND")); }
@@ -148,6 +209,7 @@ async function pipelineFor(file: File) {
   return result.value;
 }
 function ids(): () => string { const values = ["document-id", "job-id", "version-id"]; return () => values.shift() ?? "later-id"; }
+function candidate(documentId: string) { return { currentVersionId: `${documentId}-version`, documentId, fileName: "existing.md", title: "Existing" }; }
 function ok<T>(value: T): RepositoryResult<T> { return { ok: true, value }; }
 function fail(code: "DOCUMENT_NOT_FOUND" | "UNKNOWN_STORAGE_ERROR"): RepositoryResult<never> { return { ok: false, error: { code } }; }
 async function settle(): Promise<void> { await new Promise((resolve) => setTimeout(resolve, 0)); await new Promise((resolve) => setTimeout(resolve, 0)); }

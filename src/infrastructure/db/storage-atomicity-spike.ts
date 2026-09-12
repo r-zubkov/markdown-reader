@@ -181,6 +181,11 @@ export interface VisibleStorageDocument {
   readonly contentHash: string;
 }
 
+export interface ImportIdentityStorageMatches {
+  readonly exactDuplicates: readonly VisibleStorageDocument[];
+  readonly possibleUpdates: readonly VisibleStorageDocument[];
+}
+
 export interface SourceBlobRecoveryResult {
   readonly documentId: string;
   readonly fileName: string;
@@ -531,6 +536,49 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  /**
+   * Reads only ready current versions. The exact branch uses the contentHash
+   * index; title/filename candidates use their corresponding document indexes.
+   */
+  public async findReadyImportIdentityMatches(input: {
+    readonly contentHash: string;
+    readonly normalizedTitle: string;
+    readonly normalizedFileName: string;
+  }): Promise<StorageSpikeResult<ImportIdentityStorageMatches>> {
+    try {
+      if (!isLowercaseSha256(input.contentHash) || !isNonEmptyString(input.normalizedTitle) || !isNonEmptyString(input.normalizedFileName)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Import identity query is invalid.");
+      }
+      const value = await this.database.transaction("r", this.documents, this.versions, this.chunks, async () => {
+        const exactVersions = await this.versions.where("contentHash").equals(input.contentHash).toArray();
+        const exactIds = new Set<string>();
+        const exactDuplicates: VisibleStorageDocument[] = [];
+        for (const version of exactVersions) {
+          const visible = await this.getVisibleDocument(version.documentId);
+          if (visible?.currentVersionId === version.id && !exactIds.has(version.documentId)) {
+            exactIds.add(version.documentId);
+            exactDuplicates.push(visible);
+          }
+        }
+
+        const titleMatches = await this.documents.where("normalizedTitle").equals(input.normalizedTitle).toArray();
+        const fileNameMatches = await this.documents.where("normalizedFileName").equals(input.normalizedFileName).toArray();
+        const candidateIds = new Set([...titleMatches, ...fileNameMatches].map((document) => document.id));
+        const possibleUpdates: VisibleStorageDocument[] = [];
+        for (const documentId of candidateIds) {
+          if (exactIds.has(documentId)) continue;
+          const visible = await this.getVisibleDocument(documentId);
+          if (visible !== undefined) possibleUpdates.push(visible);
+        }
+        const sort = (left: VisibleStorageDocument, right: VisibleStorageDocument) => left.documentId.localeCompare(right.documentId);
+        return { exactDuplicates: exactDuplicates.sort(sort), possibleUpdates: possibleUpdates.sort(sort) };
+      });
+      return succeeded(value);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
   public async readCurrentSourceBlobForRebuild(
     documentId: string,
   ): Promise<StorageSpikeResult<SourceBlobRecoveryResult>> {
@@ -744,6 +792,24 @@ export class StorageAtomicitySpikeRepository {
   private async loadChunks(versionId: string): Promise<readonly StorageChunkRecord[]> {
     const chunks = await this.chunks.where("versionId").equals(versionId).sortBy("ordinal");
     return chunks;
+  }
+
+  private async getVisibleDocument(documentId: string): Promise<VisibleStorageDocument | undefined> {
+    const document = await this.documents.get(documentId);
+    if (document === undefined) return undefined;
+    const version = await this.versions.get(document.currentVersionId);
+    if (version?.documentId !== document.id || version.state !== "ready") return undefined;
+    const chunks = await this.loadChunks(version.id);
+    if (!isCompleteReadyVersion(version, chunks)) return undefined;
+    return {
+      activityAt: document.lastOpenedAt ?? document.updatedAt,
+      chunkCount: version.chunkCount,
+      contentHash: version.contentHash,
+      currentVersionId: version.id,
+      documentId: document.id,
+      fileName: document.fileName,
+      title: document.title,
+    };
   }
 
   private async removeVersions(versionIds: readonly string[]): Promise<CleanupResult> {

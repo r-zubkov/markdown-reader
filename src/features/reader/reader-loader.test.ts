@@ -25,6 +25,7 @@ class ReaderRepository implements DocumentRepository {
   public commitVersion(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string }>> { return Promise.resolve(ok({ documentId: "document-id", versionId: "version-id" })); }
   public abortVersion(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public cleanupAbandonedStaging(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public findImportIdentityMatches(): Promise<RepositoryResult<{ readonly exactDuplicates: readonly []; readonly possibleUpdates: readonly [] }>> { return Promise.resolve(ok({ exactDuplicates: [], possibleUpdates: [] })); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
   public getCurrentDocument(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string; readonly title: string; readonly chunkCount: number; readonly pipelineVersion: number }>> { return Promise.resolve(ok({ chunkCount: 20, documentId: "document-id", pipelineVersion: PIPELINE_VERSION, title: "Reader document", versionId: "version-id" })); }

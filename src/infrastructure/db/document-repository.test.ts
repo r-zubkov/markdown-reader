@@ -117,7 +117,42 @@ describe("DexieDocumentRepository", () => {
     expect(await repository.getPreferences()).toMatchObject({ ok: true, value: { theme: "dark", updatedAt: 42 } });
     repository.close();
   });
+
+  it("finds every ready exact hash and normalized title/filename candidate without exposing staging", async () => {
+    const repository = createRepository("import-identity");
+    await commitFixture(repository, { contentHash: "a".repeat(64), documentId: "exact-one", fileName: "one.md", jobId: "job-one", title: "One", versionId: "version-one" });
+    await commitFixture(repository, { contentHash: "a".repeat(64), documentId: "exact-two", fileName: "two.md", jobId: "job-two", title: "Two", versionId: "version-two" });
+    await commitFixture(repository, { contentHash: "b".repeat(64), documentId: "candidate", fileName: "guide.md", jobId: "job-candidate", normalizedFileName: "guide", title: "Guide", versionId: "version-candidate" });
+    const staging = createStorageStageInput({ contentHash: "c".repeat(64), documentId: "hidden", fileName: "guide.md", jobId: "job-hidden", title: "Guide", versionId: "version-hidden" });
+    await repository.stageVersion({ ...staging, pipelineVersion: PIPELINE_VERSION });
+
+    const result = await repository.findImportIdentityMatches({ contentHash: "a".repeat(64), normalizedFileName: "guide", normalizedTitle: "unrelated" });
+    expect(result).toEqual({ ok: true, value: {
+      exactDuplicates: [
+        { currentVersionId: "version-one", documentId: "exact-one", fileName: "one.md", title: "One" },
+        { currentVersionId: "version-two", documentId: "exact-two", fileName: "two.md", title: "Two" },
+      ],
+      possibleUpdates: [{ currentVersionId: "version-candidate", documentId: "candidate", fileName: "guide.md", title: "Guide" }],
+    } });
+    repository.close();
+  });
 });
+
+async function commitFixture(repository: DexieDocumentRepository, options: {
+  readonly contentHash: string;
+  readonly documentId: string;
+  readonly fileName: string;
+  readonly jobId: string;
+  readonly normalizedFileName?: string;
+  readonly title: string;
+  readonly versionId: string;
+}): Promise<void> {
+  const staged = createStorageStageInput({ ...options, chunkCount: 1 });
+  const input = { ...staged, ...(options.normalizedFileName === undefined ? {} : { normalizedFileName: options.normalizedFileName }), pipelineVersion: PIPELINE_VERSION };
+  await repository.stageVersion(input);
+  await repository.appendChunkBatch({ batchOrdinal: 0, chunks: createStorageChunks(1, { pipelineVersion: PIPELINE_VERSION }), jobId: input.jobId, versionId: input.versionId });
+  await repository.commitVersion({ jobId: input.jobId, readyAt: input.importedAt + 1, versionId: input.versionId });
+}
 
 function createRepository(testName: string): DexieDocumentRepository {
   const name = `markdown-reader-repository-${testName}-${crypto.randomUUID()}`;
