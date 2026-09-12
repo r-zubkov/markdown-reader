@@ -4,26 +4,28 @@ import type {
   ReaderChunk,
   SemanticAnchorSnapshot,
 } from "@/application/ports/document-repository";
+import { resolveReaderHash, type HashResolution } from "@/features/reader/outline-resolver";
 
 export const P01_READER_WINDOW_SIZE = 8;
 
 export type ReaderLoadResult =
-  | { readonly status: "ready"; readonly document: CurrentDocumentSnapshot; readonly chunks: readonly ReaderChunk[]; readonly targetOrdinal: number }
+  | { readonly status: "ready"; readonly document: CurrentDocumentSnapshot; readonly chunks: readonly ReaderChunk[]; readonly targetOrdinal: number; readonly hashResolution: HashResolution }
   | { readonly status: "empty"; readonly document: CurrentDocumentSnapshot }
   | { readonly status: "missing" }
   | { readonly status: "stale" }
   | { readonly status: "corrupt" };
 
 /** Loads only a small contiguous window. The production virtualizer expands this port in P03. */
-export async function loadReader(repository: DocumentRepository, documentId: string): Promise<ReaderLoadResult> {
+export async function loadReader(repository: DocumentRepository, documentId: string, hash = ""): Promise<ReaderLoadResult> {
   const documentResult = await repository.getCurrentDocument(documentId);
   if (!documentResult.ok) return loadFailure(documentResult.error.code);
   const document = documentResult.value;
   if (document.chunkCount === 0) return { status: "empty", document };
 
+  const hashResolution = resolveReaderHash(hash, document.outline);
   const stateResult = await repository.getReaderState(documentId);
   if (!stateResult.ok) return loadFailure(stateResult.error.code);
-  const targetOrdinal = await resolveTargetOrdinal(repository, documentId, stateResult.value?.anchor);
+  const targetOrdinal = hashResolution.kind === "valid" ? hashResolution.heading.chunkOrdinal : await resolveTargetOrdinal(repository, documentId, stateResult.value?.anchor);
   const window = boundedWindow(document.chunkCount, targetOrdinal);
   const chunksResult = await repository.getCurrentChunkWindow({
     documentId,
@@ -32,7 +34,7 @@ export async function loadReader(repository: DocumentRepository, documentId: str
     startOrdinal: window.startOrdinal,
   });
   if (!chunksResult.ok) return loadFailure(chunksResult.error.code);
-  return { status: "ready", chunks: chunksResult.value, document, targetOrdinal };
+  return { status: "ready", chunks: chunksResult.value, document, hashResolution, targetOrdinal };
 }
 
 export function boundedWindow(chunkCount: number, targetOrdinal: number): { readonly startOrdinal: number; readonly endOrdinalInclusive: number } {

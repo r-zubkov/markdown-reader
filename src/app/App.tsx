@@ -23,9 +23,9 @@ function AppHeader() {
 }
 
 function ReaderScreen() {
-  const { documentId } = useParams();
+  const { documentId } = useParams(); const location = useLocation();
   if (!documentId) return <NotFoundScreen />;
-  return <AppFrame reader><ReaderToolbar /><ReaderContent documentId={documentId} repository={getDocumentRepository()} /></AppFrame>;
+  return <AppFrame reader><ReaderToolbar /><ReaderContent documentId={documentId} hash={location.hash} repository={getDocumentRepository()} /></AppFrame>;
 }
 
 function NotFoundScreen() { return <AppFrame><main className="screen" id="main-content" tabIndex={-1}><section aria-labelledby="not-found-title" className="screen__content"><p className="screen__eyebrow">{appCopy.notFound.eyebrow}</p><h1 data-route-heading="true" id="not-found-title" tabIndex={-1}>{appCopy.notFound.title}</h1><p className="screen__description">{appCopy.notFound.description}</p><Link className="screen__link" to="/">{appCopy.navigation.toLibrary}</Link></section></main></AppFrame>; }

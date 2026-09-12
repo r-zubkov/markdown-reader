@@ -91,6 +91,15 @@ a { color: var(--accent); }
 .reader__notice, .reader__window-status { color: var(--text-muted); line-height: 1.5; }
 .reader__notice { min-height: 44px; padding: 12px 0; }
 .reader__recovery p { color: var(--text-muted); line-height: 1.5; }
+.reader-toc { min-width: 0; margin-block: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.reader-toc ol { display: grid; gap: 2px; margin: 0; padding: 8px; list-style: none; }
+.reader-toc__item a { display: block; min-height: 44px; padding: 10px; border-radius: 6px; color: var(--text); line-height: 1.35; text-decoration: none; overflow-wrap: anywhere; }
+.reader-toc__item a:hover, .reader-toc__item a[aria-current="location"] { color: var(--accent); background: var(--surface-raised); }
+.reader-toc__item--level-2 { padding-inline-start: 16px; }
+.reader-toc__item--level-3 { padding-inline-start: 32px; }
+.reader-toc__mobile { margin-block: 16px; }
+.reader-toc__sheet { min-height: 0; margin: 0; overflow-y: auto; overscroll-behavior: contain; border-inline: 0; border-radius: 0; }
+.reader-toc__sheet ol { padding-block-end: max(16px, env(safe-area-inset-bottom)); }
 .reader-chunk { scroll-margin-top: 72px; padding-block: 16px; border-block-end: 1px solid var(--border); }
 .reader-chunk__content { min-width: 0; }
 .reader-chunk__save { min-height: 44px; margin-block-start: 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); cursor: pointer; }
@@ -150,6 +159,15 @@ a { color: var(--accent); }
   .import-overlay { position: fixed; inset: env(safe-area-inset-top) 0 0; width: 100%; max-width: none; max-height: none; height: calc(100dvh - env(safe-area-inset-top)); border-radius: 16px 16px 0 0; transform: none; }
   .import-overlay__footer { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 }
+
+@media (min-width: 1120px) {
+  .screen--reader { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 800px); justify-content: center; gap: 32px; }
+  .screen--reader .screen__content { grid-column: 2; margin-inline: 0; }
+  .reader-toc--desktop { position: fixed; inset-block-start: 88px; inset-inline-start: max(16px, calc((100vw - 1112px) / 2)); width: min(280px, calc((100vw - 840px) / 2)); max-height: calc(100dvh - 104px); overflow-y: auto; }
+  .reader-toc__mobile { display: none; }
+}
+
+@media (max-width: 1119px) { .reader-toc--desktop { display: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .import-progress--indeterminate { animation: none; }

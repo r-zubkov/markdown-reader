@@ -14,7 +14,7 @@ import type {
   StageDocumentVersionInput,
 } from "@/application/ports/document-repository";
 import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
-import type { BlockAnchor } from "@/domain/content/pipeline-types";
+import type { BlockAnchor, OutlineItem } from "@/domain/content/pipeline-types";
 import {
   StorageAtomicitySpikeRepository,
   type StorageSpikeResult,
@@ -91,10 +91,10 @@ export class DexieDocumentRepository implements DocumentRepository {
     if (!version.ok) return failure(version.error.code);
     const current = version.value;
     if (current.pipelineVersion !== PIPELINE_VERSION) return failure("STALE_DERIVED");
-    if (!nonEmpty(current.documentId) || !nonEmpty(current.id) || !nonEmpty(current.title) || !nonNegative(current.chunkCount) || !nonNegative(current.pipelineVersion)) {
+    if (!nonEmpty(current.documentId) || !nonEmpty(current.id) || !nonEmpty(current.title) || !nonNegative(current.chunkCount) || !nonNegative(current.pipelineVersion) || !isOutline(current.outline, current.chunkCount)) {
       return failure("INVALID_PERSISTED_RECORD");
     }
-    return success({ documentId: current.documentId, versionId: current.id, title: current.title, chunkCount: current.chunkCount, pipelineVersion: current.pipelineVersion });
+    return success({ documentId: current.documentId, versionId: current.id, title: current.title, chunkCount: current.chunkCount, outline: current.outline, pipelineVersion: current.pipelineVersion });
   }
 
   public async getCurrentSourceForRebuild(documentId: string): Promise<RepositoryResult<RebuildSourceSnapshot>> {
@@ -205,6 +205,14 @@ function isChunkWindow(chunks: readonly { readonly ordinal: number; readonly htm
   });
 }
 function isBlockAnchor(value: unknown, chunkStart: number, chunkEnd: number): value is BlockAnchor { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.blockId) && hash(record.contentFingerprint) && nonNegative(record.blockOrdinalWithinHeading) && nonEmpty(record.headingPathKey) && nonNegative(record.sourceStart) && nonNegative(record.sourceEnd) && record.sourceStart >= chunkStart && record.sourceEnd >= record.sourceStart && record.sourceEnd <= chunkEnd; }
+function isOutline(value: unknown, chunkCount: number): value is readonly OutlineItem[] {
+  if (!Array.isArray(value)) return false;
+  const ids = new Set<string>();
+  return value.every((item) => {
+    if (!isRecord(item) || !nonEmpty(item.id) || !nonEmpty(item.text) || !nonEmpty(item.pathKey) || (item.level !== 1 && item.level !== 2 && item.level !== 3) || !nonNegative(item.sourceStart) || !nonNegative(item.chunkOrdinal) || item.chunkOrdinal >= chunkCount || !Array.isArray(item.childIds) || !item.childIds.every(nonEmpty) || ids.has(item.id)) return false;
+    ids.add(item.id); return true;
+  });
+}
 function isReaderState(value: unknown): value is ReaderStateSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.documentId) && (record.readingMode === "continuous" || record.readingMode === "sections") && (record.modeOrigin === "auto" || record.modeOrigin === "user") && ["auto", "h1", "h2", "h3", "whole"].includes(record.splitStrategy as string) && (record.anchor === undefined || isSemanticAnchor(record.anchor)) && ratio(record.progressRatio) && nonNegative(record.updatedAt); }
 function isSemanticAnchor(value: unknown): value is SemanticAnchorSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.versionId) && nonEmpty(record.headingPathKey) && nonEmpty(record.blockId) && nonNegative(record.blockOrdinalWithinHeading) && ratio(record.intraBlockRatio) && ratio(record.overallSourceRatio); }
 function isPreferences(value: unknown): value is AppPreferencesSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return (record.theme === "system" || record.theme === "light" || record.theme === "dark") && typeof record.remoteImagesEnabled === "boolean" && typeof record.desktopTocCollapsed === "boolean" && nonNegative(record.updatedAt); }

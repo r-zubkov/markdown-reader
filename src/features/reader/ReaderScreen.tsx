@@ -1,32 +1,46 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import type { DocumentRepository, ReaderChunk } from "@/application/ports/document-repository";
 import { loadReader, type ReaderLoadResult } from "@/features/reader/reader-loader";
+import { replaceReaderHash } from "@/features/reader/outline-resolver";
+import { TableOfContents } from "@/features/reader/TableOfContents";
 import { appCopy } from "@/shared/i18n/ru";
 import { SafeHtmlChunk } from "@/ui/primitives/SafeHtmlChunk";
 
 interface ReaderScreenProps {
   readonly documentId: string;
   readonly repository: DocumentRepository;
+  readonly hash?: string;
 }
 
 type ReaderViewState = { readonly status: "restoring" } | ReaderLoadResult;
 
-export function ReaderScreen({ documentId, repository }: ReaderScreenProps) {
+export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreenProps) {
   const [state, setState] = useState<ReaderViewState>({ status: "restoring" });
   const [saveState, setSaveState] = useState<"idle" | "saving" | "failed">("idle");
+  const [requestedHash, setRequestedHash] = useState(hash);
+  const focusTarget = useRef(false);
 
   useEffect(() => {
     let active = true;
-    void loadReader(repository, documentId).then((result) => { if (active) setState(result); });
+    void loadReader(repository, documentId, requestedHash).then((result) => { if (active) setState(result); });
     return () => { active = false; };
-  }, [documentId, repository]);
+  }, [documentId, repository, requestedHash]);
 
   useEffect(() => {
     if (state.status !== "ready") return;
-    document.getElementById(`reader-chunk-${String(state.targetOrdinal)}`)?.scrollIntoView({ block: "start" });
+    const headingId = state.hashResolution.kind === "valid" ? state.hashResolution.heading.id : undefined;
+    const target = headingId === undefined ? document.getElementById(`reader-chunk-${String(state.targetOrdinal)}`) : document.getElementById(headingId);
+    target?.scrollIntoView({ block: "start" });
+    if (focusTarget.current && target instanceof HTMLElement) { target.tabIndex = -1; target.focus({ preventScroll: true }); focusTarget.current = false; }
   }, [state]);
+
+  function selectHeading(id: string, shouldFocus: boolean): void {
+    focusTarget.current = shouldFocus;
+    replaceReaderHash(id);
+    setRequestedHash(`#${encodeURIComponent(id)}`);
+  }
 
   async function saveAnchor(chunk: ReaderChunk): Promise<void> {
     const anchor = chunk.anchors[0];
@@ -47,6 +61,8 @@ export function ReaderScreen({ documentId, repository }: ReaderScreenProps) {
       {state.status === "ready" ? <>
         <p className="screen__eyebrow">{appCopy.reader.eyebrow}</p>
         <h1 data-route-heading="true" id="reader-title" tabIndex={-1}>{state.document.title}</h1>
+        <TableOfContents activeId={state.hashResolution.kind === "valid" ? state.hashResolution.heading.id : undefined} outline={state.document.outline} onSelect={selectHeading} />
+        {state.hashResolution.kind === "invalid" ? <ReaderNotice text={appCopy.reader.invalidHeading} /> : null}
         <p className="reader__window-status">{appCopy.reader.boundedWindow}</p>
         {state.chunks.map((chunk) => <section className="reader-chunk" id={`reader-chunk-${String(chunk.ordinal)}`} key={`${state.document.versionId}:${String(chunk.ordinal)}`}>
           <SafeHtmlChunk html={chunk.html} ordinal={chunk.ordinal} />

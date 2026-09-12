@@ -91,6 +91,7 @@ export interface CurrentDocumentSnapshot {
   readonly title: string;
   readonly chunkCount: number;
   readonly pipelineVersion: number;
+  readonly outline: readonly OutlineItem[];
 }
 
 export interface RebuildSourceSnapshot {
