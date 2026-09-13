@@ -45,7 +45,7 @@ interface ReaderViewportProps {
 }
 ```
 
-It obtains chunks through injected `ReaderWindowPort`; parents do not pass `chunks[]` for whole document. `SafeHtmlChunk` accepts current-pipeline branded HTML and stable key only.
+It obtains chunks through injected `ReaderWindowPort`; parents do not pass `chunks[]` for whole document. The port performs an IndexedDB compound-key ordinal-range query and returns only the requested current-version records: ordinal, current-pipeline branded HTML, semantic anchors, estimated cost, render state and optional diagnostic code. `SafeHtmlChunk` accepts current-pipeline branded HTML and stable key only.
 
 ## States and edge cases
 

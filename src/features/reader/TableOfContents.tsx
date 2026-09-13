@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 import type { OutlineItem } from "@/domain/content/pipeline-types";
 import { appCopy } from "@/shared/i18n/ru";
@@ -14,12 +14,15 @@ interface TableOfContentsProps {
 export function TableOfContents({ activeId, outline, onSelect }: TableOfContentsProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const focusFrameRef = useRef(0);
+  useEffect(() => () => { window.cancelAnimationFrame(focusFrameRef.current); }, []);
   if (outline.length === 0) return null;
   const activate = (id: string, event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     const keyboard = event.detail === 0;
     onSelect(id, keyboard);
     setOpen(false);
+    if (keyboard) focusHeadingAfterSheetCloses(id, focusFrameRef);
     if (!keyboard) queueMicrotask(() => triggerRef.current?.focus());
   };
   return <>
@@ -34,6 +37,29 @@ export function TableOfContents({ activeId, outline, onSelect }: TableOfContents
       </SheetTrigger>
     </div>
   </>;
+}
+
+function focusHeadingAfterSheetCloses(id: string, frameRef: { current: number }): void {
+  let attempts = 0;
+  let stableFrames = 0;
+  const focus = () => {
+    attempts += 1;
+    const target = document.getElementById(id);
+    const overlayOpen = document.querySelector('[role="dialog"]') !== null;
+    if (!overlayOpen && target instanceof HTMLElement) {
+      const active = document.activeElement;
+      const mayRestore = active === document.body || active === target || active?.closest(".reader-toc__mobile") !== null;
+      if (!mayRestore) return;
+      if (active !== target) {
+        target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+      }
+      stableFrames = document.activeElement === target ? stableFrames + 1 : 0;
+    }
+    if (attempts < 120 && stableFrames < 30) frameRef.current = window.requestAnimationFrame(focus);
+  };
+  window.cancelAnimationFrame(frameRef.current);
+  frameRef.current = window.requestAnimationFrame(focus);
 }
 
 function TocList({ activeId, outline, onActivate }: { readonly activeId: string | undefined; readonly outline: readonly OutlineItem[]; readonly onActivate: (id: string, event: MouseEvent<HTMLAnchorElement>) => void }) {

@@ -117,11 +117,14 @@ export class DexieDocumentRepository implements DocumentRepository {
     const version = await this.storage.getCurrentReadyVersion(input.documentId);
     if (!version.ok) return failure(version.error.code);
     if (input.pipelineVersion !== PIPELINE_VERSION || version.value.pipelineVersion !== PIPELINE_VERSION) return failure("STALE_DERIVED");
-    const chunks = await this.storage.getChunks(version.value.id);
+    const chunks = await this.storage.getChunkRange(
+      version.value.id,
+      input.startOrdinal,
+      input.endOrdinalInclusive,
+    );
     if (!chunks.ok) return failure(chunks.error.code);
-    const selected = chunks.value.filter((chunk) => chunk.ordinal >= input.startOrdinal && chunk.ordinal <= input.endOrdinalInclusive);
-    if (!isChunkWindow(selected, input)) return failure("INVALID_PERSISTED_RECORD");
-    return success(selected.map((chunk) => ({
+    if (!isChunkWindow(chunks.value, input)) return failure("INVALID_PERSISTED_RECORD");
+    return success(chunks.value.map((chunk) => ({
       anchors: chunk.blockAnchors.map((anchor) => ({
         blockId: anchor.blockId,
         blockOrdinalWithinHeading: anchor.blockOrdinalWithinHeading,
@@ -130,8 +133,11 @@ export class DexieDocumentRepository implements DocumentRepository {
         overallSourceRatio: version.value.chunkCount <= 1 ? 0 : chunk.ordinal / (version.value.chunkCount - 1),
         versionId: version.value.id,
       })),
+      ...(chunk.diagnosticCode === undefined ? {} : { diagnosticCode: chunk.diagnosticCode }),
+      estimatedCost: chunk.estimatedCost,
       html: makeSanitizedHtml(chunk.html, chunk.pipelineVersion),
       ordinal: chunk.ordinal,
+      renderState: chunk.renderState,
     })));
   }
 
@@ -194,13 +200,13 @@ function isPersistableChunk(value: unknown): boolean {
   const sourceEnd = value.sourceEnd;
   return nonNegative(value.ordinal) && typeof value.html === "string" && sourceEnd >= sourceStart && typeof value.estimatedCost === "number" && Number.isFinite(value.estimatedCost) && value.estimatedCost >= 0 && Array.isArray(headingIds) && headingIds.every(nonEmpty) && Array.isArray(blockAnchors) && blockAnchors.every((anchor) => isBlockAnchor(anchor, sourceStart, sourceEnd)) && (value.renderState === "ready" || value.renderState === "safe-fallback") && (value.diagnosticCode === undefined || typeof value.diagnosticCode === "string" && ["FRAGMENT_FALLBACK", "HIGHLIGHT_FAILED", "OVERSIZED_NODE"].includes(value.diagnosticCode));
 }
-function isChunkWindow(chunks: readonly { readonly ordinal: number; readonly html: string; readonly pipelineVersion: number; readonly sourceStart: number; readonly sourceEnd: number; readonly blockAnchors: readonly unknown[]; }[], input: { readonly startOrdinal: number; readonly endOrdinalInclusive: number; readonly pipelineVersion: number }): boolean {
+function isChunkWindow(chunks: readonly { readonly ordinal: number; readonly html: string; readonly pipelineVersion: number; readonly sourceStart: number; readonly sourceEnd: number; readonly estimatedCost: number; readonly blockAnchors: readonly unknown[]; readonly renderState: unknown; readonly diagnosticCode?: unknown; }[], input: { readonly startOrdinal: number; readonly endOrdinalInclusive: number; readonly pipelineVersion: number }): boolean {
   if (!nonNegative(input.startOrdinal) || !nonNegative(input.endOrdinalInclusive) || input.endOrdinalInclusive < input.startOrdinal) return false;
   if (chunks.length !== input.endOrdinalInclusive - input.startOrdinal + 1) return false;
   let expectedOrdinal = input.startOrdinal;
   let previousEnd = -1;
   return chunks.every((chunk) => {
-    const valid = chunk.ordinal === expectedOrdinal && typeof chunk.html === "string" && chunk.pipelineVersion === input.pipelineVersion && nonNegative(chunk.sourceStart) && nonNegative(chunk.sourceEnd) && chunk.sourceEnd >= chunk.sourceStart && chunk.sourceStart >= previousEnd && chunk.blockAnchors.every((anchor) => isBlockAnchor(anchor, chunk.sourceStart, chunk.sourceEnd));
+    const valid = chunk.ordinal === expectedOrdinal && typeof chunk.html === "string" && chunk.pipelineVersion === input.pipelineVersion && nonNegative(chunk.sourceStart) && nonNegative(chunk.sourceEnd) && chunk.sourceEnd >= chunk.sourceStart && chunk.sourceStart >= previousEnd && typeof chunk.estimatedCost === "number" && Number.isFinite(chunk.estimatedCost) && chunk.estimatedCost >= 0 && (chunk.renderState === "ready" || chunk.renderState === "safe-fallback") && (chunk.diagnosticCode === undefined || typeof chunk.diagnosticCode === "string" && ["FRAGMENT_FALLBACK", "HIGHLIGHT_FAILED", "OVERSIZED_NODE"].includes(chunk.diagnosticCode)) && chunk.blockAnchors.every((anchor) => isBlockAnchor(anchor, chunk.sourceStart, chunk.sourceEnd));
     expectedOrdinal += 1; previousEnd = chunk.sourceEnd; return valid;
   });
 }

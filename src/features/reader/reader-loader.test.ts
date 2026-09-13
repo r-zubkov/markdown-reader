@@ -4,17 +4,17 @@ import type { DocumentRepository, RepositoryResult } from "@/application/ports/d
 import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import { boundedWindow, loadReader } from "./reader-loader";
 
-describe("P01 reader loader", () => {
+describe("P03 production reader loader", () => {
   it("requests one bounded range around the restored semantic anchor", async () => {
     const repository = new ReaderRepository();
     const result = await loadReader(repository, "document-id");
     expect(result).toMatchObject({ status: "ready", targetOrdinal: 12 });
-    expect(repository.windowRequest).toEqual({ documentId: "document-id", endOrdinalInclusive: 15, pipelineVersion: PIPELINE_VERSION, startOrdinal: 8 });
+    expect(repository.windowRequest).toEqual({ documentId: "document-id", endOrdinalInclusive: 23, pipelineVersion: PIPELINE_VERSION, startOrdinal: 0 });
   });
 
   it("keeps the initial reader window bounded at document edges", () => {
-    expect(boundedWindow(20, 0)).toEqual({ startOrdinal: 0, endOrdinalInclusive: 7 });
-    expect(boundedWindow(20, 19)).toEqual({ startOrdinal: 12, endOrdinalInclusive: 19 });
+    expect(boundedWindow(100, 0)).toEqual({ startOrdinal: 0, endOrdinalInclusive: 23 });
+    expect(boundedWindow(100, 99)).toEqual({ startOrdinal: 76, endOrdinalInclusive: 99 });
   });
 });
 
@@ -28,7 +28,7 @@ class ReaderRepository implements DocumentRepository {
   public findImportIdentityMatches(): Promise<RepositoryResult<{ readonly exactDuplicates: readonly []; readonly possibleUpdates: readonly [] }>> { return Promise.resolve(ok({ exactDuplicates: [], possibleUpdates: [] })); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
-  public getCurrentDocument(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string; readonly title: string; readonly chunkCount: number; readonly pipelineVersion: number; readonly outline: readonly [] }>> { return Promise.resolve(ok({ chunkCount: 20, documentId: "document-id", outline: [], pipelineVersion: PIPELINE_VERSION, title: "Reader document", versionId: "version-id" })); }
+  public getCurrentDocument(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string; readonly title: string; readonly chunkCount: number; readonly pipelineVersion: number; readonly outline: readonly [] }>> { return Promise.resolve(ok({ chunkCount: 100, documentId: "document-id", outline: [], pipelineVersion: PIPELINE_VERSION, title: "Reader document", versionId: "version-id" })); }
   public getCurrentSourceForRebuild(): Promise<RepositoryResult<never>> { return Promise.resolve({ ok: false, error: { code: "DOCUMENT_NOT_FOUND" } }); }
   public getCurrentChunkWindow(input: { readonly documentId: string; readonly startOrdinal: number; readonly endOrdinalInclusive: number; readonly pipelineVersion: number }): Promise<RepositoryResult<readonly []>> { this.windowRequest = input; return Promise.resolve(ok([])); }
   public resolveCurrentAnchor(): Promise<RepositoryResult<number | undefined>> { return Promise.resolve(ok(12)); }

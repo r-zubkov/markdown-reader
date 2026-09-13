@@ -51,7 +51,7 @@ describe("DexieDocumentRepository", () => {
       pipelineVersion: PIPELINE_VERSION,
       startOrdinal: 0,
     });
-    expect(window).toMatchObject({ ok: true, value: [{ ordinal: 0, html: { value: "<p>storage chunk 0</p>" } }, { ordinal: 1, html: { value: "<p>storage chunk 1</p>" } }] });
+    expect(window).toMatchObject({ ok: true, value: [{ ordinal: 0, estimatedCost: 1, html: { value: "<p>storage chunk 0</p>" }, renderState: "ready" }, { ordinal: 1, estimatedCost: 1, html: { value: "<p>storage chunk 1</p>" }, renderState: "ready" }] });
     expect(await repository.getCurrentChunkWindow({
       documentId: input.documentId,
       endOrdinalInclusive: 1,

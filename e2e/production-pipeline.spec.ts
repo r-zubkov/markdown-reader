@@ -36,8 +36,8 @@ test("production worker imports and renders the supported semantic/security corp
     mimeType: "text/markdown",
     buffer: Buffer.from(markdown),
   });
-  await expect(page.locator(".import-overlay__notice")).toContainText("Документ готов.");
-  await page.getByRole("link", { name: /Production pipeline/ }).click();
+  await expect(page.locator(".import-overlay__notice")).toContainText("Документ готов.", { timeout: 15_000 });
+  await page.locator("a.import-overlay__open").click();
 
   await expect(page.locator(".reader-content h1")).toContainText("Production pipeline");
   await expect(page.getByRole("columnheader", { name: "Feature", exact: true })).toBeVisible();

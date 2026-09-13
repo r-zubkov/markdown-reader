@@ -26,6 +26,7 @@ export function ThemeProvider({ children, preferenceStore }: { children: ReactNo
     return () => { active = false; };
   }, [preferenceStore]);
   const updatePreference = (next: ThemePreference) => {
+    window.dispatchEvent(new Event("markdown-reader:before-layout-change"));
     setPreference(next);
     if (!preferenceStore) { writeThemeMirror(next); return; }
     void preferenceStore.saveTheme(next, Date.now()).then((result) => { if (result.ok) writeThemeMirror(next); });

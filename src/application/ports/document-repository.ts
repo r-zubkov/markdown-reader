@@ -83,6 +83,9 @@ export interface ReaderChunk {
   readonly ordinal: number;
   readonly html: SanitizedHtml;
   readonly anchors: readonly SemanticAnchorSnapshot[];
+  readonly estimatedCost: number;
+  readonly renderState: "ready" | "safe-fallback";
+  readonly diagnosticCode?: "FRAGMENT_FALLBACK" | "HIGHLIGHT_FAILED" | "OVERSIZED_NODE";
 }
 
 export interface CurrentDocumentSnapshot {

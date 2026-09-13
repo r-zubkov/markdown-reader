@@ -656,6 +656,37 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  public async getChunkRange(
+    versionId: string,
+    startOrdinal: number,
+    endOrdinalInclusive: number,
+  ): Promise<StorageSpikeResult<readonly StorageChunkRecord[]>> {
+    try {
+      if (
+        !isNonEmptyString(versionId) ||
+        !isSafeNonNegativeInteger(startOrdinal) ||
+        !isSafeNonNegativeInteger(endOrdinalInclusive) ||
+        endOrdinalInclusive < startOrdinal
+      ) {
+        throwStorageError("INVALID_VERSION_METADATA", "Chunk range is invalid.");
+      }
+
+      return succeeded(
+        await this.chunks
+          .where("[versionId+ordinal]")
+          .between(
+            [versionId, startOrdinal],
+            [versionId, endOrdinalInclusive],
+            true,
+            true,
+          )
+          .sortBy("ordinal"),
+      );
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
   /**
    * These narrow accessors are used by the production repository adapter. They
    * intentionally return records only inside infrastructure, where the adapter
