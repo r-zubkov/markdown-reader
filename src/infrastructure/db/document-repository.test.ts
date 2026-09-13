@@ -73,6 +73,8 @@ describe("DexieDocumentRepository", () => {
 
     expect(await repository.saveReaderAnchor({ anchor, documentId: input.documentId, progressRatio: 1, updatedAt: 2_000 })).toEqual({ ok: true, value: undefined });
     expect(await repository.getReaderState(input.documentId)).toMatchObject({ ok: true, value: { anchor, progressRatio: 1 } });
+    expect(await repository.saveReaderPresentation({ documentId: input.documentId, modeOrigin: "user", readingMode: "sections", splitStrategy: "h2", updatedAt: 2_001 })).toEqual({ ok: true, value: undefined });
+    expect(await repository.getReaderState(input.documentId)).toMatchObject({ ok: true, value: { anchor, modeOrigin: "user", readingMode: "sections", splitStrategy: "h2" } });
     expect(await repository.resolveCurrentAnchor({ anchor, documentId: input.documentId })).toEqual({ ok: true, value: 2 });
     expect(await repository.resolveCurrentAnchor({ anchor: { ...anchor, versionId: "old-version" }, documentId: input.documentId })).toEqual({ ok: true, value: undefined });
     repository.close();

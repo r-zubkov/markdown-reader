@@ -32,7 +32,7 @@ Non-goals: search, bookmarks/history of every location, pixel-perfect identical 
 
 On first open/default ReaderState:
 
-1. Compare version analysis against measured `AUTO_SECTIONS_THRESHOLD` (not raw byte size alone if corpus shows better cost metric).
+1. Compare total persisted chunk `estimatedCost` against measured `AUTO_SECTIONS_COST_THRESHOLD=24,000` (not raw byte size). At or below the threshold selects continuous; above it selects sections.
 2. Set `readingMode`, `modeOrigin='auto'`.
 3. Once user chooses a mode, `modeOrigin='user'`; replacement preserves it unless chosen mode is technically impossible, then defined fallback + notice.
 

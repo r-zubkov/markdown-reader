@@ -64,6 +64,7 @@ class CacheRepository implements DocumentRepository {
   public resolveCurrentAnchor(): Promise<RepositoryResult<number | undefined>> { return Promise.resolve(ok(undefined)); }
   public getReaderState(): Promise<RepositoryResult<ReaderStateSnapshot | undefined>> { return Promise.resolve(ok(undefined)); }
   public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public saveReaderPresentation(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public getPreferences(): Promise<RepositoryResult<AppPreferencesSnapshot>> { return Promise.resolve(ok({ desktopTocCollapsed: false, remoteImagesEnabled: true, theme: "system", updatedAt: 0 })); }
   public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
 }

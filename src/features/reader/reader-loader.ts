@@ -6,11 +6,12 @@ import type {
 } from "@/application/ports/document-repository";
 import { resolveReaderHash, type HashResolution } from "@/features/reader/outline-resolver";
 import { READER_VIRTUAL_CONFIG } from "@/features/reader/reader-virtual-config";
+import { resolveReaderPresentation, type ReaderPresentation } from "@/domain/reading/reader-presentation";
 
 export const READER_INITIAL_WINDOW_SIZE = READER_VIRTUAL_CONFIG.initialWindowSize;
 
 export type ReaderLoadResult =
-  | { readonly status: "ready"; readonly document: CurrentDocumentSnapshot; readonly chunks: readonly ReaderChunk[]; readonly targetOrdinal: number; readonly hashResolution: HashResolution; readonly requestHash: string }
+  | { readonly status: "ready"; readonly document: CurrentDocumentSnapshot; readonly chunks: readonly ReaderChunk[]; readonly targetOrdinal: number; readonly hashResolution: HashResolution; readonly requestHash: string; readonly presentation: ReaderPresentation }
   | { readonly status: "empty"; readonly document: CurrentDocumentSnapshot }
   | { readonly status: "missing" }
   | { readonly status: "stale" }
@@ -35,7 +36,7 @@ export async function loadReader(repository: DocumentRepository, documentId: str
     startOrdinal: window.startOrdinal,
   });
   if (!chunksResult.ok) return loadFailure(chunksResult.error.code);
-  return { status: "ready", chunks: chunksResult.value, document, hashResolution, requestHash: hash, targetOrdinal };
+  return { chunks: chunksResult.value, document, hashResolution, presentation: resolveReaderPresentation(document.layouts, stateResult.value), requestHash: hash, status: "ready", targetOrdinal };
 }
 
 export function boundedWindow(chunkCount: number, targetOrdinal: number): { readonly startOrdinal: number; readonly endOrdinalInclusive: number } {

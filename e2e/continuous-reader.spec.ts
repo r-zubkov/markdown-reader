@@ -103,6 +103,10 @@ async function importContinuousCorpus(page: Page): Promise<void> {
   });
   await page.locator("a.import-overlay__open").click();
   await expect(page.locator("#reader-title")).toHaveText("Continuous Corpus");
+  await page.locator(".reader__controls button").click();
+  await page.getByRole("radio", { name: "Непрерывное чтение", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("reader-viewport")).toBeAttached();
 }
 
 function createContinuousMarkdown(): string {

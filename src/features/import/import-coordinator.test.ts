@@ -199,6 +199,7 @@ class MemoryRepository implements DocumentRepository {
   public resolveCurrentAnchor(): Promise<RepositoryResult<undefined>> { return Promise.resolve(ok(undefined)); }
   public getReaderState(): Promise<RepositoryResult<undefined>> { return Promise.resolve(ok(undefined)); }
   public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public saveReaderPresentation(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public getPreferences(): Promise<RepositoryResult<{ readonly theme: "system"; readonly remoteImagesEnabled: true; readonly desktopTocCollapsed: false; readonly updatedAt: 0 }>> { return Promise.resolve(ok({ theme: "system", remoteImagesEnabled: true, desktopTocCollapsed: false, updatedAt: 0 })); }
   public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
 }

@@ -91,6 +91,17 @@ a { color: var(--accent); }
 .reader__notice, .reader__window-status { color: var(--text-muted); line-height: 1.5; }
 .reader__notice { min-height: 44px; padding: 12px 0; }
 .reader__recovery p { color: var(--text-muted); line-height: 1.5; }
+.reader__controls { display: flex; flex-wrap: wrap; align-items: start; gap: 8px; margin-block: 16px; }
+.reading-settings { max-height: min(720px, calc(100dvh - 24px)); overflow-y: auto; }
+.reading-settings fieldset { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 12px 0; border: 0; border-block-start: 1px solid var(--border); }
+.reading-settings legend { padding: 0; font-weight: 700; }
+.reading-settings__help, .reading-settings [role="note"] { margin: 0; color: var(--text-muted); line-height: 1.45; }
+.section-context { margin: 16px 0 0; color: var(--text-muted); font-weight: 700; overflow-wrap: anywhere; }
+.section-reader { min-width: 0; margin-block-start: 8px; }
+.section-reader__window-nav, .section-pager { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 16px; }
+.section-reader__window-nav button, .section-pager button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); text-align: start; cursor: pointer; overflow-wrap: anywhere; }
+.section-pager button:last-child { border-color: var(--accent); color: var(--accent-contrast); background: var(--accent); }
+.section-reader__window-nav button:disabled, .section-pager button:disabled { cursor: not-allowed; opacity: .55; }
 .reader-toc { min-width: 0; margin-block: 20px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .reader-toc ol { display: grid; gap: 2px; margin: 0; padding: 8px; list-style: none; }
 .reader-toc__item a { display: block; min-height: 44px; padding: 10px; border-radius: 6px; color: var(--text); line-height: 1.35; text-decoration: none; overflow-wrap: anywhere; }
@@ -185,6 +196,8 @@ a { color: var(--accent); }
 @media (max-width: 767px) {
   .import-overlay { position: fixed; inset: env(safe-area-inset-top) 0 0; width: 100%; max-width: none; max-height: none; height: calc(100dvh - env(safe-area-inset-top)); border-radius: 16px 16px 0 0; transform: none; }
   .import-overlay__footer { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .reading-settings { position: fixed; inset: env(safe-area-inset-top) 0 0; width: 100%; max-width: none; max-height: none; height: calc(100dvh - env(safe-area-inset-top)); border-radius: 16px 16px 0 0; transform: none; }
+  .section-reader__window-nav button, .section-pager button { flex: 1 1 140px; }
 }
 
 @media (min-width: 1120px) {

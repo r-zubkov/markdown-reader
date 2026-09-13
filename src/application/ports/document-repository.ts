@@ -95,6 +95,7 @@ export interface CurrentDocumentSnapshot {
   readonly chunkCount: number;
   readonly pipelineVersion: number;
   readonly outline: readonly OutlineItem[];
+  readonly layouts: Record<SplitStrategy, SectionLayout>;
 }
 
 export interface RebuildSourceSnapshot {
@@ -164,6 +165,13 @@ export interface DocumentRepository {
     readonly documentId: string;
     readonly anchor: SemanticAnchorSnapshot;
     readonly progressRatio: number;
+    readonly updatedAt: number;
+  }): Promise<RepositoryResult<void>>;
+  saveReaderPresentation(input: {
+    readonly documentId: string;
+    readonly readingMode: ReaderStateSnapshot["readingMode"];
+    readonly modeOrigin: ReaderStateSnapshot["modeOrigin"];
+    readonly splitStrategy: SplitStrategy;
     readonly updatedAt: number;
   }): Promise<RepositoryResult<void>>;
   getPreferences(): Promise<RepositoryResult<AppPreferencesSnapshot>>;

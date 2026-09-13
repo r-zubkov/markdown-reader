@@ -725,6 +725,28 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  public async saveReaderPresentation(input: {
+    readonly documentId: string;
+    readonly readingMode: StorageReadingMode;
+    readonly modeOrigin: StorageModeOrigin;
+    readonly splitStrategy: SplitStrategy;
+    readonly updatedAt: number;
+  }): Promise<StorageSpikeResult<void>> {
+    try {
+      if (!isNonEmptyString(input.documentId) || !["continuous", "sections"].includes(input.readingMode) || !["auto", "user"].includes(input.modeOrigin) || !splitStrategies.includes(input.splitStrategy) || !isSafeNonNegativeInteger(input.updatedAt)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Reader presentation update is invalid.");
+      }
+      await this.database.transaction("rw", this.readerStates, async () => {
+        const state = await this.readerStates.get(input.documentId);
+        if (state === undefined) throwStorageError("DOCUMENT_NOT_FOUND", "Reader state document is missing.");
+        await this.readerStates.put({ ...state, ...input });
+      });
+      return succeeded(undefined);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
   public async findChunkOrdinalByBlockId(versionId: string, blockId: string): Promise<StorageSpikeResult<number | undefined>> {
     try {
       if (!isNonEmptyString(versionId) || !isNonEmptyString(blockId)) {

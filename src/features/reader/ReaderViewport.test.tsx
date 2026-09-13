@@ -6,6 +6,7 @@ import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import { createReaderRangeExtractor, READER_VIRTUAL_CONFIG } from "@/features/reader/reader-virtual-config";
 import { ReaderViewport } from "@/features/reader/ReaderViewport";
 import { DexieDocumentRepository } from "@/infrastructure/db/document-repository";
+import { createSingleSectionLayouts } from "@/infrastructure/db/storage-atomicity-spike";
 
 class ResizeObserverStub {
   public disconnect(): void { return undefined; }
@@ -24,7 +25,7 @@ describe("ReaderViewport", () => {
   it("renders repository-branded chunks behind bounded production metrics", async () => {
     const chunks = createChunks(0, 0);
     render(<ReaderViewport
-      document={{ chunkCount: 1, documentId: "document", outline: [], pipelineVersion: PIPELINE_VERSION, title: "Document", versionId: "version" }}
+      document={{ chunkCount: 1, documentId: "document", layouts: createSingleSectionLayouts(1), outline: [], pipelineVersion: PIPELINE_VERSION, title: "Document", versionId: "version" }}
       focusTarget={false}
       initialChunks={chunks}
       onFatalError={vi.fn()}
