@@ -112,6 +112,7 @@ export interface StorageReaderStateRecord {
   splitStrategy: SplitStrategy;
   anchor?: StorageSemanticAnchor;
   progressRatio: number;
+  lastSectionId?: string;
   updatedAt: number;
 }
 
@@ -179,6 +180,7 @@ export interface VisibleStorageDocument {
   readonly activityAt: number;
   readonly chunkCount: number;
   readonly contentHash: string;
+  readonly progressRatio: number;
 }
 
 export interface ImportIdentityStorageMatches {
@@ -474,7 +476,7 @@ export class StorageAtomicitySpikeRepository {
 
   public async listVisibleDocuments(): Promise<StorageSpikeResult<readonly VisibleStorageDocument[]>> {
     try {
-      const value = await this.database.transaction("r", this.documents, this.versions, this.chunks, async () => {
+      const value = await this.database.transaction("r", this.documents, this.versions, this.chunks, this.readerStates, async () => {
         const documents = await this.documents.toArray();
         const visibleDocuments: VisibleStorageDocument[] = [];
 
@@ -489,6 +491,8 @@ export class StorageAtomicitySpikeRepository {
             continue;
           }
 
+          const readerState = await this.readerStates.get(document.id);
+
           visibleDocuments.push({
             activityAt: document.lastOpenedAt ?? document.updatedAt,
             chunkCount: version.chunkCount,
@@ -497,6 +501,7 @@ export class StorageAtomicitySpikeRepository {
             documentId: document.id,
             fileName: document.fileName,
             title: document.title,
+            progressRatio: readerState !== undefined && isRatio(readerState.progressRatio) ? readerState.progressRatio : 0,
           });
         }
 
@@ -549,7 +554,7 @@ export class StorageAtomicitySpikeRepository {
       if (!isLowercaseSha256(input.contentHash) || !isNonEmptyString(input.normalizedTitle) || !isNonEmptyString(input.normalizedFileName)) {
         throwStorageError("INVALID_VERSION_METADATA", "Import identity query is invalid.");
       }
-      const value = await this.database.transaction("r", this.documents, this.versions, this.chunks, async () => {
+      const value = await this.database.transaction("r", this.documents, this.versions, this.chunks, this.readerStates, async () => {
         const exactVersions = await this.versions.where("contentHash").equals(input.contentHash).toArray();
         const exactIds = new Set<string>();
         const exactDuplicates: VisibleStorageDocument[] = [];
@@ -706,10 +711,11 @@ export class StorageAtomicitySpikeRepository {
     readonly documentId: string;
     readonly anchor: StorageSemanticAnchor;
     readonly progressRatio: number;
+    readonly lastSectionId?: string;
     readonly updatedAt: number;
   }): Promise<StorageSpikeResult<void>> {
     try {
-      if (!isNonEmptyString(input.documentId) || !isStorageSemanticAnchor(input.anchor) || !isRatio(input.progressRatio) || !isSafeNonNegativeInteger(input.updatedAt)) {
+      if (!isNonEmptyString(input.documentId) || !isStorageSemanticAnchor(input.anchor) || !isRatio(input.progressRatio) || !isSafeNonNegativeInteger(input.updatedAt) || (input.lastSectionId !== undefined && !isNonEmptyString(input.lastSectionId))) {
         throwStorageError("INVALID_VERSION_METADATA", "Reader anchor update is invalid.");
       }
       await this.database.transaction("rw", this.readerStates, async () => {
@@ -717,7 +723,7 @@ export class StorageAtomicitySpikeRepository {
         if (state === undefined) {
           throwStorageError("DOCUMENT_NOT_FOUND", "Reader state document is missing.");
         }
-        await this.readerStates.put({ ...state, anchor: input.anchor, progressRatio: input.progressRatio, updatedAt: input.updatedAt });
+        await this.readerStates.put({ ...state, anchor: input.anchor, progressRatio: input.progressRatio, updatedAt: input.updatedAt, ...(input.lastSectionId === undefined ? {} : { lastSectionId: input.lastSectionId }) });
       });
       return succeeded(undefined);
     } catch (error) {
@@ -754,6 +760,18 @@ export class StorageAtomicitySpikeRepository {
       }
       const chunk = await this.chunks.where("versionId").equals(versionId).filter((record) => record.blockAnchors.some((anchor) => anchor.blockId === blockId)).first();
       return succeeded(chunk?.ordinal);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
+  public async getChunkAnchorIndex(versionId: string): Promise<StorageSpikeResult<readonly { readonly anchor: BlockAnchor; readonly chunkOrdinal: number }[]>> {
+    try {
+      if (!isNonEmptyString(versionId)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Reader anchor index request is invalid.");
+      }
+      const chunks = await this.chunks.where("versionId").equals(versionId).sortBy("ordinal");
+      return succeeded(chunks.flatMap((chunk) => chunk.blockAnchors.map((anchor) => ({ anchor, chunkOrdinal: chunk.ordinal }))));
     } catch (error) {
       return failed(mapStorageError(error));
     }
@@ -854,6 +872,7 @@ export class StorageAtomicitySpikeRepository {
     if (version?.documentId !== document.id || version.state !== "ready") return undefined;
     const chunks = await this.loadChunks(version.id);
     if (!isCompleteReadyVersion(version, chunks)) return undefined;
+    const readerState = await this.readerStates.get(document.id);
     return {
       activityAt: document.lastOpenedAt ?? document.updatedAt,
       chunkCount: version.chunkCount,
@@ -862,6 +881,7 @@ export class StorageAtomicitySpikeRepository {
       documentId: document.id,
       fileName: document.fileName,
       title: document.title,
+      progressRatio: readerState !== undefined && isRatio(readerState.progressRatio) ? readerState.progressRatio : 0,
     };
   }
 

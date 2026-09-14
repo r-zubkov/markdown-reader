@@ -98,14 +98,15 @@ corepack pnpm test:e2e:list
 - [production-pipeline.md](docs/benchmarks/production-pipeline.md) — принятые P02-T01 production limits, протокол, fallbacks и regression evidence.
 - [virtual-reader-spike.md](docs/benchmarks/virtual-reader-spike.md) — результаты P00-T04 по виртуализации, bounded cache, focus и browser matrix.
 - [progress-mapping-spike.md](docs/benchmarks/progress-mapping-spike.md) — результаты P00-T05 по semantic anchors, confidence policy и update pairs.
+- [progress-persistence.md](docs/benchmarks/progress-persistence.md) — принятые правила semantic progress, throttling, flush и восстановления P03-T04.
 - [tasks/](codex-spec/tasks/) — атомарные задания для реализации по одному.
 
 ## Текущий статус
 
 - Спецификация: `COMPLETE · QA PASSED`.
-- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 COMPLETE · P03 IN PROGRESS`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`.
-- Следующая разблокированная задача: `P03-T03`.
+- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 COMPLETE · P03 COMPLETE`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`, `P03-T03`, `P03-T04`.
+- Следующая разблокированная задача: `P04-T01`.
 
 ## Текущая структура репозитория
 
@@ -168,4 +169,4 @@ tools/
 e2e/
 ```
 
-Структура уже включает P00 spikes, P01 walking skeleton и завершённый safe import P02, включая duplicate/update decisions. Reader modes/TOC, mapped replacement, lifecycle hardening и release PWA завершаются последующими task-файлами.
+Структура уже включает P00 spikes, P01 walking skeleton, завершённый safe import P02 и полный core Reader P03 с TOC, двумя режимами и сохранением semantic progress. Mapped replacement, lifecycle hardening и release PWA завершаются последующими task-файлами.

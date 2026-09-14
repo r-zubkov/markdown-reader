@@ -9,15 +9,16 @@ interface ReadingSettingsProps {
   readonly applying: boolean;
   readonly layouts: Record<SplitStrategy, SectionLayout>;
   readonly onModeChange: (mode: ReaderPresentation["mode"]) => void;
+  readonly onOpenChange?: (open: boolean) => void;
   readonly onStrategyChange: (strategy: SplitStrategy) => void;
   readonly presentation: ReaderPresentation;
 }
 
 const strategies = ["auto", "h1", "h2", "h3", "whole"] as const satisfies readonly SplitStrategy[];
 
-export function ReadingSettings({ applying, layouts, onModeChange, onStrategyChange, presentation }: ReadingSettingsProps) {
+export function ReadingSettings({ applying, layouts, onModeChange, onOpenChange, onStrategyChange, presentation }: ReadingSettingsProps) {
   const whole = layouts.whole;
-  return <DialogTrigger><Button aria-label={readerCopy.openSettings} variant="outline">{readerCopy.settings}</Button><Dialog className="reading-settings">
+  return <DialogTrigger {...(onOpenChange === undefined ? {} : { onOpenChange })}><Button aria-label={readerCopy.openSettings} variant="outline">{readerCopy.settings}</Button><Dialog className="reading-settings">
     <DialogHeader><DialogTitle>{readerCopy.settings}</DialogTitle><DialogDescription>{readerCopy.settingsDescription}</DialogDescription></DialogHeader>
     <fieldset disabled={applying}><legend>{readerCopy.readingMode}</legend><RadioGroup aria-label={readerCopy.readingMode} onChange={(value) => { if (value === "continuous" || value === "sections") onModeChange(value); }} value={presentation.mode}>
       <RadioGroupItem value="continuous">{readerCopy.continuousMode}</RadioGroupItem>

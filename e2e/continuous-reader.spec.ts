@@ -38,6 +38,8 @@ test.describe("P03-T02 production continuous reader", () => {
     await expect.poll(async () => Number(await viewport.getAttribute("data-cache-count"))).toBeLessThanOrEqual(96);
 
     await page.getByRole("link", { name: "Section 1", exact: true }).first().click();
+    await expect(viewport).toHaveAttribute("data-target-ordinal", "1");
+    await expect(viewport).toHaveAttribute("aria-busy", "false");
     const focusLink = page.getByRole("link", { name: "Pinned focus target" });
     await focusLink.focus();
     await page.mouse.wheel(0, 100_000);
@@ -73,7 +75,8 @@ test.describe("P03-T02 production continuous reader", () => {
 
     const beforeResizeTop = await page.locator("#mdr-h-section-110-1").evaluate((element) => element.getBoundingClientRect().top);
     await page.setViewportSize({ height: 390, width: 844 });
-    await page.waitForTimeout(250);
+    await expect(page.getByTestId("reader-viewport")).toHaveAttribute("data-remeasuring", "true");
+    await expect(page.getByTestId("reader-viewport")).toHaveAttribute("data-remeasuring", "false");
     const afterResizeTop = await page.locator("#mdr-h-section-110-1").evaluate((element) => element.getBoundingClientRect().top);
     expect(Math.abs(afterResizeTop - beforeResizeTop)).toBeLessThanOrEqual(96);
   });
@@ -82,12 +85,15 @@ test.describe("P03-T02 production continuous reader", () => {
     await importContinuousCorpus(page);
     await page.getByRole("link", { name: "Section 110", exact: true }).first().click();
     const viewport = page.getByTestId("reader-viewport");
-    await expect(viewport).toHaveAttribute("data-target-ordinal", "110");
+    await expect.poll(async () => Number(await viewport.getAttribute("data-target-ordinal"))).toBeGreaterThanOrEqual(109);
+    expect(Number(await viewport.getAttribute("data-target-ordinal"))).toBeLessThanOrEqual(110);
     await expect(viewport).toHaveAttribute("aria-busy", "false");
-    await page.locator(".reader-chunk__save").click();
+    await page.waitForTimeout(900);
+    await page.evaluate(() => { history.replaceState(history.state, "", location.pathname); });
     await page.reload();
 
-    await expect(viewport).toHaveAttribute("data-target-ordinal", "110");
+    await expect.poll(async () => Number(await viewport.getAttribute("data-target-ordinal"))).toBeGreaterThanOrEqual(109);
+    expect(Number(await viewport.getAttribute("data-target-ordinal"))).toBeLessThanOrEqual(110);
     await expect(page.getByText("MIDDLE_READER_MARKER")).toBeVisible();
     await expect.poll(async () => Number(await viewport.getAttribute("data-cache-count"))).toBeLessThanOrEqual(96);
   });
@@ -104,10 +110,12 @@ async function importContinuousCorpus(page: Page): Promise<void> {
   await page.locator("a.import-overlay__open").click();
   await expect(page.locator("#reader-title")).toHaveText("Continuous Corpus");
   await page.locator(".reader__controls button").click();
-  await page.getByRole("radio", { name: "Непрерывное чтение", exact: true }).click();
-  await page.keyboard.press("Escape");
+  await page.getByRole("radio", { name: "Непрерывное чтение", exact: true }).focus();
+  await page.keyboard.press("Space");
   await expect(page.getByTestId("reader-viewport")).toBeAttached();
+  await page.getByRole("button", { name: "Close" }).evaluate((button: HTMLButtonElement) => { button.click(); });
 }
+
 
 function createContinuousMarkdown(): string {
   const lines = [

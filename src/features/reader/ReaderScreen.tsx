@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import type { DocumentRepository, RepositoryErrorCode } from "@/application/ports/document-repository";
+import { findSectionIndex, type ReaderPresentation } from "@/domain/reading/reader-presentation";
+import type { RestoreConfidence } from "@/domain/reading/progress-mapping";
+import { readerCopy } from "@/features/reader/copy";
+import { ReaderLocationController, type LocationPersistenceStatus } from "@/features/reader/reader-location-controller";
+import type { ObservedLocation } from "@/features/reader/reader-location-observer";
 import { loadReader, type ReaderLoadResult } from "@/features/reader/reader-loader";
 import { replaceReaderHash } from "@/features/reader/outline-resolver";
-import { ReaderViewport, type ObservedLocation } from "@/features/reader/ReaderViewport";
+import { ReaderViewport } from "@/features/reader/ReaderViewport";
 import { ReadingSettings } from "@/features/reader/ReadingSettings";
 import { SectionReader } from "@/features/reader/SectionReader";
 import { TableOfContents } from "@/features/reader/TableOfContents";
-import { readerCopy } from "@/features/reader/copy";
-import { findSectionIndex, type ReaderPresentation } from "@/domain/reading/reader-presentation";
 import { appCopy } from "@/shared/i18n/ru";
 
 interface ReaderScreenProps {
@@ -20,100 +23,218 @@ interface ReaderScreenProps {
 
 type ReaderViewState = { readonly status: "restoring" } | ReaderLoadResult;
 
+interface NavigationTarget {
+  readonly blockId?: string;
+  readonly headingId?: string;
+  readonly intraBlockRatio: number;
+  readonly key: string;
+  readonly ordinal: number;
+}
+
 export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreenProps) {
   const [state, setState] = useState<ReaderViewState>({ status: "restoring" });
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "failed">("idle");
   const [requestedHash, setRequestedHash] = useState(hash);
   const [shouldFocusTarget, setShouldFocusTarget] = useState(false);
   const [observedLocation, setObservedLocation] = useState<ObservedLocation | undefined>(undefined);
   const [presentationOverride, setPresentationOverride] = useState<ReaderPresentation | undefined>(undefined);
   const [settingsState, setSettingsState] = useState<"idle" | "applying" | "failed">("idle");
+  const [persistenceState, setPersistenceState] = useState<LocationPersistenceStatus>("idle");
   const [sectionIndex, setSectionIndex] = useState<number | undefined>(undefined);
+  const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | undefined>(undefined);
+  const [restoreNotice, setRestoreNotice] = useState<Exclude<RestoreConfidence, "exact"> | undefined>(undefined);
+  const navigationSequenceRef = useRef(0);
+  const applyingRef = useRef(false);
+  const hashPropRef = useRef(hash);
+  const settingsAnchorRef = useRef<ObservedLocation | undefined>(undefined);
+
+  const controller = useMemo(() => new ReaderLocationController({
+    onPersistenceStatus: setPersistenceState,
+    onUiLocation: setObservedLocation,
+    persist: (location, updatedAt) => repository.saveReaderAnchor({
+      anchor: location.anchor,
+      documentId,
+      ...(location.lastSectionId === undefined ? {} : { lastSectionId: location.lastSectionId }),
+      progressRatio: location.progressRatio,
+      updatedAt,
+    }),
+  }), [documentId, repository]);
 
   useEffect(() => {
     let active = true;
-    void loadReader(repository, documentId, requestedHash).then((result) => { if (active) setState(result); });
+    void loadReader(repository, documentId, requestedHash).then((result) => {
+      if (!active) return;
+      setState(result);
+      setNavigationTarget(undefined);
+      setObservedLocation(undefined);
+      setPresentationOverride(undefined);
+      setSectionIndex(undefined);
+      setRestoreNotice(result.status === "ready" && result.restore !== undefined && result.restore.confidence !== "exact" ? result.restore.confidence : undefined);
+    });
     return () => { active = false; };
   }, [documentId, repository, requestedHash]);
 
+  useEffect(() => {
+    if (hashPropRef.current === hash) return;
+    hashPropRef.current = hash;
+    setRequestedHash(hash);
+  }, [hash]);
+
+  useEffect(() => {
+    const flush = () => { void controller.flush(); };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      void controller.flush();
+    };
+  }, [controller]);
+
   function selectHeading(id: string, shouldFocus: boolean): void {
+    void controller.flush();
     setShouldFocusTarget(shouldFocus);
     if (state.status === "ready") {
       const target = state.document.outline.find((item) => item.id === id);
-      if (target !== undefined) setSectionIndex(findSectionIndex(state.document.layouts[(presentationOverride ?? state.presentation).splitStrategy].sections, target.chunkOrdinal));
+      if (target !== undefined) {
+        const presentation = presentationOverride ?? state.presentation;
+        setSectionIndex(findSectionIndex(state.document.layouts[presentation.splitStrategy].sections, target.chunkOrdinal));
+      }
     }
+    setRestoreNotice(undefined);
     replaceReaderHash(id);
     setRequestedHash(`#${encodeURIComponent(id)}`);
   }
 
-  async function saveAnchor(): Promise<void> {
-    const anchor = observedLocation?.anchor;
-    if (anchor === undefined) { setSaveState("failed"); return; }
-    setSaveState("saving");
-    const result = await repository.saveReaderAnchor({
-      anchor,
+  async function applyPresentation(change: Partial<Pick<ReaderPresentation, "mode" | "splitStrategy">>): Promise<void> {
+    if (state.status !== "ready" || applyingRef.current) return;
+    const current = presentationOverride ?? state.presentation;
+    const next: ReaderPresentation = {
+      mode: change.mode ?? current.mode,
+      modeOrigin: change.mode === undefined ? current.modeOrigin : "user",
+      splitStrategy: change.splitStrategy ?? current.splitStrategy,
+    };
+    if (next.splitStrategy === "whole" && !state.document.layouts.whole.safeForSelection) { setSettingsState("failed"); return; }
+
+    applyingRef.current = true;
+    setSettingsState("applying");
+    const location = settingsAnchorRef.current ?? controller.getCurrentLocation() ?? observedLocation;
+    const locationSaved = await controller.flush();
+    if (!locationSaved) {
+      applyingRef.current = false;
+      setSettingsState("failed");
+      return;
+    }
+    const result = await repository.saveReaderPresentation({
       documentId,
-      progressRatio: anchor.overallSourceRatio,
+      modeOrigin: next.modeOrigin,
+      readingMode: next.mode,
+      splitStrategy: next.splitStrategy,
       updatedAt: currentTimestamp(),
     });
-    setSaveState(result.ok ? "idle" : "failed");
+    if (!result.ok) {
+      applyingRef.current = false;
+      setSettingsState("failed");
+      return;
+    }
+    setPresentationOverride(next);
+    const targetOrdinal = location?.chunkOrdinal ?? state.targetOrdinal;
+    setSectionIndex(findSectionIndex(state.document.layouts[next.splitStrategy].sections, targetOrdinal));
+    if (location !== undefined) setNavigationTarget(createBlockTarget(location, nextNavigationKey(navigationSequenceRef)));
+    setRestoreNotice(undefined);
+    setSettingsState("idle");
+    applyingRef.current = false;
   }
 
-  async function applyPresentation(change: Partial<Pick<ReaderPresentation, "mode" | "splitStrategy">>): Promise<void> {
+  function startAtBeginning(): void {
     if (state.status !== "ready") return;
-    const current = presentationOverride ?? state.presentation;
-    const next: ReaderPresentation = { mode: change.mode ?? current.mode, modeOrigin: change.mode === undefined ? current.modeOrigin : "user", splitStrategy: change.splitStrategy ?? current.splitStrategy };
-    if (next.splitStrategy === "whole" && !state.document.layouts.whole.safeForSelection) { setSettingsState("failed"); return; }
-    window.dispatchEvent(new Event("markdown-reader:before-layout-change"));
-    setSettingsState("applying");
-    const result = await repository.saveReaderPresentation({ documentId, modeOrigin: next.modeOrigin, readingMode: next.mode, splitStrategy: next.splitStrategy, updatedAt: currentTimestamp() });
-    if (!result.ok) { setSettingsState("failed"); return; }
-    setPresentationOverride(next);
-    setSectionIndex(findSectionIndex(state.document.layouts[next.splitStrategy].sections, observedLocation?.chunkOrdinal ?? state.targetOrdinal));
-    setSettingsState("idle");
+    setRestoreNotice(undefined);
+    setSectionIndex(0);
+    setNavigationTarget({ intraBlockRatio: 0, key: nextNavigationKey(navigationSequenceRef), ordinal: 0 });
+  }
+
+  function changeSection(index: number, sections: readonly { readonly id: string; readonly startChunkOrdinal: number }[]): void {
+    const section = sections[index];
+    if (section === undefined) return;
+    void controller.flush();
+    setSectionIndex(index);
+    setNavigationTarget({ intraBlockRatio: 0, key: nextNavigationKey(navigationSequenceRef), ordinal: section.startChunkOrdinal });
   }
 
   const handleLocationChange = useCallback((location: ObservedLocation): void => {
-    setObservedLocation((current) => current?.chunkOrdinal === location.chunkOrdinal && current.anchor?.blockId === location.anchor?.blockId ? current : location);
-  }, []);
+    controller.observe(location);
+  }, [controller]);
   const handleFatalError = useCallback((code: RepositoryErrorCode): void => {
     setState(code === "DOCUMENT_NOT_FOUND" ? { status: "missing" } : code === "STALE_DERIVED" ? { status: "stale" } : { status: "corrupt" });
   }, []);
   const handleTargetSettled = useCallback((): void => { setShouldFocusTarget(false); }, []);
 
   return <main className="screen screen--reader" id="main-content">
-    <article aria-busy={state.status === "restoring"} aria-labelledby="reader-title" className="screen__content reader" id="document-content" tabIndex={-1}>
+    <article
+      aria-busy={state.status === "restoring"}
+      aria-labelledby="reader-title"
+      className="screen__content reader"
+      data-current-block-id={controller.getCurrentLocation()?.anchor.blockId ?? ""}
+      data-location-observations={controller.getMetrics().observations}
+      data-location-ui-updates={controller.getMetrics().uiUpdates}
+      data-location-writes={controller.getMetrics().writes}
+      id="document-content"
+      tabIndex={-1}
+    >
       {state.status === "restoring" ? <ReaderNotice text={appCopy.reader.restoring} /> : null}
-      {state.status === "ready" ? <>
-        {(() => {
-          const presentation = presentationOverride ?? state.presentation;
-          const sections = state.document.layouts[presentation.splitStrategy].sections;
-          const activeIndex = sectionIndex ?? findSectionIndex(sections, state.targetOrdinal);
-          const activeSection = sections[activeIndex] ?? sections[0];
-          return <>
-        <p className="screen__eyebrow">{appCopy.reader.eyebrow}</p>
-        <h1 data-route-heading="true" id="reader-title" tabIndex={-1}>{state.document.title}</h1>
-        <TableOfContents activeId={activeHeadingId(state, observedLocation)} outline={state.document.outline} onSelect={selectHeading} />
-        {state.hashResolution.kind === "invalid" ? <ReaderNotice text={appCopy.reader.invalidHeading} /> : null}
-        <div className="reader__controls"><ReadingSettings applying={settingsState === "applying"} layouts={state.document.layouts} onModeChange={(mode) => { void applyPresentation({ mode }); }} onStrategyChange={(splitStrategy) => { void applyPresentation({ splitStrategy }); }} presentation={presentation} />{settingsState === "failed" ? <ReaderNotice text={readerCopy.settingsFailed} /> : null}</div>
-        {presentation.mode === "continuous" ? <p className="reader__window-status">{appCopy.reader.continuousWindow}</p> : null}
-        {state.requestHash === requestedHash ? null : <ReaderNotice text={appCopy.reader.restoring} />}
-        {presentation.mode === "continuous" ? <><button className="reader-chunk__save" data-testid={`reader-save-block-${String(observedLocation?.chunkOrdinal ?? state.targetOrdinal)}`} disabled={observedLocation?.anchor === undefined || saveState === "saving"} onClick={() => { void saveAnchor(); }} type="button">{appCopy.reader.savePosition}</button><ReaderViewport
-          document={state.document}
-          focusTarget={shouldFocusTarget}
-          initialChunks={state.chunks}
-          onFatalError={handleFatalError}
-          onLocationChange={handleLocationChange}
-          onTargetSettled={handleTargetSettled}
-          repository={repository}
-          {...(state.hashResolution.kind === "valid" ? { targetId: state.hashResolution.heading.id } : {})}
-          targetOrdinal={state.targetOrdinal}
-          targetRequestKey={`${state.requestHash}:${String(state.targetOrdinal)}`}
-        /></> : activeSection === undefined ? <ReaderNotice text={appCopy.reader.emptyDocument} /> : <><SectionContext index={activeIndex} section={activeSection} total={sections.length} /><SectionReader document={state.document} key={`${activeSection.id}:${String(state.targetOrdinal)}`} onFatalError={handleFatalError} repository={repository} section={activeSection} {...(state.hashResolution.kind === "valid" ? { targetId: state.hashResolution.heading.id } : {})} targetOrdinal={state.targetOrdinal} /><SectionPager index={activeIndex} onChange={setSectionIndex} sections={sections} /></>}
-        {saveState === "failed" ? <ReaderNotice text={appCopy.reader.saveFailed} /> : null}
-          </>;
-        })()}
-      </> : null}
+      {state.status === "ready" ? <>{(() => {
+        const presentation = presentationOverride ?? state.presentation;
+        const sections = state.document.layouts[presentation.splitStrategy].sections;
+        const targetOrdinal = navigationTarget?.ordinal ?? state.targetOrdinal;
+        const targetHeadingId = navigationTarget?.headingId ?? (state.hashResolution.kind === "valid" ? state.hashResolution.heading.id : undefined);
+        const targetBlockId = navigationTarget?.blockId ?? (state.hashResolution.kind === "valid" ? undefined : state.targetAnchor?.blockId);
+        const targetIntraBlockRatio = navigationTarget?.intraBlockRatio ?? state.targetAnchor?.intraBlockRatio ?? 0;
+        const targetRequestKey = navigationTarget?.key ?? `${state.requestHash}:${targetBlockId ?? targetHeadingId ?? String(targetOrdinal)}`;
+        const activeIndex = sectionIndex ?? findSectionIndex(sections, targetOrdinal);
+        const activeSection = sections[activeIndex] ?? sections[0];
+        const progressRatio = observedLocation?.progressRatio ?? state.readerState?.progressRatio ?? 0;
+        return <>
+          <p className="screen__eyebrow">{appCopy.reader.eyebrow}</p>
+          <h1 data-route-heading="true" id="reader-title" tabIndex={-1}>{state.document.title}</h1>
+          <ReaderProgress ratio={progressRatio} />
+          <TableOfContents activeId={activeHeadingId(state, observedLocation)} outline={state.document.outline} onSelect={selectHeading} />
+          {state.hashResolution.kind === "invalid" ? <ReaderNotice text={appCopy.reader.invalidHeading} /> : null}
+          <RestoreStatus confidence={restoreNotice} onContinue={() => { setRestoreNotice(undefined); }} onStart={startAtBeginning} />
+          <div className="reader__controls"><ReadingSettings applying={settingsState === "applying"} layouts={state.document.layouts} onModeChange={(mode) => { void applyPresentation({ mode }); }} onOpenChange={(open) => { if (open) settingsAnchorRef.current = controller.getCurrentLocation() ?? observedLocation; }} onStrategyChange={(splitStrategy) => { void applyPresentation({ splitStrategy }); }} presentation={presentation} />{settingsState === "failed" ? <ReaderNotice text={readerCopy.settingsFailed} /> : null}</div>
+          {presentation.mode === "continuous" ? <p className="reader__window-status">{appCopy.reader.continuousWindow}</p> : null}
+          {state.requestHash === requestedHash ? null : <ReaderNotice text={appCopy.reader.restoring} />}
+          {presentation.mode === "continuous" ? <ReaderViewport
+            document={state.document}
+            focusTarget={shouldFocusTarget}
+            initialChunks={state.chunks}
+            onFatalError={handleFatalError}
+            onLocationChange={handleLocationChange}
+            onTargetSettled={handleTargetSettled}
+            repository={repository}
+            {...(targetBlockId === undefined ? {} : { targetBlockId })}
+            {...(targetHeadingId === undefined ? {} : { targetId: targetHeadingId })}
+            targetIntraBlockRatio={targetIntraBlockRatio}
+            targetOrdinal={targetOrdinal}
+            targetRequestKey={targetRequestKey}
+          /> : activeSection === undefined ? <ReaderNotice text={appCopy.reader.emptyDocument} /> : <>
+            <SectionContext index={activeIndex} section={activeSection} total={sections.length} />
+            <SectionReader
+              document={state.document}
+              focusTarget={shouldFocusTarget}
+              key={`${activeSection.id}:${targetRequestKey}`}
+              onFatalError={handleFatalError}
+              onLocationChange={handleLocationChange}
+              onTargetSettled={handleTargetSettled}
+              repository={repository}
+              section={activeSection}
+              {...(targetBlockId === undefined ? {} : { targetBlockId })}
+              {...(targetHeadingId === undefined ? {} : { targetId: targetHeadingId })}
+              targetIntraBlockRatio={targetIntraBlockRatio}
+              targetOrdinal={targetOrdinal}
+              targetRequestKey={targetRequestKey}
+            />
+            <SectionPager index={activeIndex} onChange={(index) => { changeSection(index, sections); }} sections={sections} />
+          </>}
+          {persistenceState === "failed" ? <ReaderNotice text={readerCopy.persistenceFailed} /> : null}
+        </>;
+      })()}</> : null}
       {state.status === "empty" ? <ReaderNotice text={appCopy.reader.emptyDocument} /> : null}
       {state.status === "missing" ? <ReaderRecovery text={appCopy.reader.missingDocument} /> : null}
       {state.status === "stale" ? <ReaderRecovery text={appCopy.reader.staleDocument} /> : null}
@@ -126,13 +247,36 @@ export function ReaderToolbar({ title }: { readonly title?: string }) {
   return <nav aria-label={appCopy.a11y.readerToolbar} className="reader-toolbar"><Link to="/">{appCopy.navigation.backToLibrary}</Link><span className="reader-toolbar__title">{title ?? appCopy.reader.toolbarTitle}</span></nav>;
 }
 
+export function RestoreStatus({ confidence, onContinue, onStart }: { readonly confidence: Exclude<RestoreConfidence, "exact"> | undefined; readonly onContinue: () => void; readonly onStart: () => void }) {
+  if (confidence === undefined) return null;
+  return <section className="reader__restore-notice">
+    <p aria-live="polite" role="status">{confidence === "approximate" ? readerCopy.restoreApproximate : readerCopy.restoreNotFound}</p>
+    <div>{confidence === "approximate" ? <button onClick={onContinue} type="button">{readerCopy.continueReading}</button> : null}<button onClick={onStart} type="button">{readerCopy.startReading}</button></div>
+  </section>;
+}
+
+function ReaderProgress({ ratio }: { readonly ratio: number }) {
+  const safeRatio = Math.min(1, Math.max(0, Number.isFinite(ratio) ? ratio : 0));
+  const label = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0, style: "percent" }).format(safeRatio);
+  return <div className="reader-progress"><span>{readerCopy.readingProgress}: {label}</span><progress aria-label={readerCopy.readingProgress} max={1} value={safeRatio} /></div>;
+}
+
 function ReaderNotice({ text }: { readonly text: string }) { return <p className="reader__notice" role="status">{text}</p>; }
 function ReaderRecovery({ text }: { readonly text: string }) { return <section aria-labelledby="reader-title" className="reader__recovery"><h1 data-route-heading="true" id="reader-title" tabIndex={-1}>{appCopy.reader.title}</h1><p>{text}</p><Link className="screen__link" to="/">{appCopy.navigation.backToLibrary}</Link></section>; }
 function currentTimestamp(): number { return Date.now(); }
 
 function activeHeadingId(state: Extract<ReaderLoadResult, { readonly status: "ready" }>, observed: ObservedLocation | undefined): string | undefined {
   if (observed === undefined) return state.hashResolution.kind === "valid" ? state.hashResolution.heading.id : undefined;
-  return [...state.document.outline].reverse().find((item) => item.chunkOrdinal <= observed.chunkOrdinal)?.id;
+  return state.document.outline.find((item) => item.pathKey === observed.anchor.headingPathKey)?.id ?? [...state.document.outline].reverse().find((item) => item.chunkOrdinal <= observed.chunkOrdinal)?.id;
+}
+
+function createBlockTarget(location: ObservedLocation, key: string): NavigationTarget {
+  return { blockId: location.anchor.blockId, intraBlockRatio: location.anchor.intraBlockRatio, key, ordinal: location.chunkOrdinal };
+}
+
+function nextNavigationKey(sequence: { current: number }): string {
+  sequence.current += 1;
+  return `reader-navigation-${String(sequence.current)}`;
 }
 
 function SectionContext({ index, section, total }: { readonly index: number; readonly section: { readonly title?: string }; readonly total: number }) { return <p className="section-context" role="status">{readerCopy.sectionContext.replace("{current}", String(index + 1)).replace("{total}", String(total)).replace("{title}", section.title ?? readerCopy.untitledSection)}</p>; }

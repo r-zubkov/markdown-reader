@@ -196,7 +196,7 @@ class MemoryRepository implements DocumentRepository {
   public getCurrentDocument(): Promise<RepositoryResult<never>> { return Promise.resolve(fail("DOCUMENT_NOT_FOUND")); }
   public getCurrentSourceForRebuild(): Promise<RepositoryResult<RebuildSourceSnapshot>> { return Promise.resolve(this.rebuildSource === undefined ? fail("DOCUMENT_NOT_FOUND") : ok(this.rebuildSource)); }
   public getCurrentChunkWindow(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
-  public resolveCurrentAnchor(): Promise<RepositoryResult<undefined>> { return Promise.resolve(ok(undefined)); }
+  public resolveCurrentAnchor(): Promise<RepositoryResult<{ readonly chunkOrdinal: 0; readonly confidence: "none"; readonly reason: "NO_RELIABLE_MATCH" }>> { return Promise.resolve(ok({ chunkOrdinal: 0, confidence: "none", reason: "NO_RELIABLE_MATCH" })); }
   public getReaderState(): Promise<RepositoryResult<undefined>> { return Promise.resolve(ok(undefined)); }
   public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public saveReaderPresentation(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }

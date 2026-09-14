@@ -71,12 +71,13 @@ describe("DexieDocumentRepository", () => {
     await repository.commitVersion({ jobId: input.jobId, readyAt: input.importedAt + 1, versionId: input.versionId });
     const anchor = { blockId: "block-2", blockOrdinalWithinHeading: 2, headingPathKey: "1:storage-spike[1]", intraBlockRatio: 0, overallSourceRatio: 1, versionId: input.versionId };
 
-    expect(await repository.saveReaderAnchor({ anchor, documentId: input.documentId, progressRatio: 1, updatedAt: 2_000 })).toEqual({ ok: true, value: undefined });
-    expect(await repository.getReaderState(input.documentId)).toMatchObject({ ok: true, value: { anchor, progressRatio: 1 } });
+    expect(await repository.saveReaderAnchor({ anchor, documentId: input.documentId, lastSectionId: "section-3", progressRatio: 1, updatedAt: 2_000 })).toEqual({ ok: true, value: undefined });
+    expect(await repository.getReaderState(input.documentId)).toMatchObject({ ok: true, value: { anchor, lastSectionId: "section-3", progressRatio: 1 } });
     expect(await repository.saveReaderPresentation({ documentId: input.documentId, modeOrigin: "user", readingMode: "sections", splitStrategy: "h2", updatedAt: 2_001 })).toEqual({ ok: true, value: undefined });
     expect(await repository.getReaderState(input.documentId)).toMatchObject({ ok: true, value: { anchor, modeOrigin: "user", readingMode: "sections", splitStrategy: "h2" } });
-    expect(await repository.resolveCurrentAnchor({ anchor, documentId: input.documentId })).toEqual({ ok: true, value: 2 });
-    expect(await repository.resolveCurrentAnchor({ anchor: { ...anchor, versionId: "old-version" }, documentId: input.documentId })).toEqual({ ok: true, value: undefined });
+    expect(await repository.resolveCurrentAnchor({ anchor, documentId: input.documentId })).toMatchObject({ ok: true, value: { anchor: { blockId: anchor.blockId, intraBlockRatio: 0, versionId: input.versionId }, chunkOrdinal: 2, confidence: "exact", reason: "SAME_VERSION_BLOCK_ID" } });
+    expect(await repository.resolveCurrentAnchor({ anchor: { ...anchor, versionId: "old-version" }, documentId: input.documentId })).toEqual({ ok: true, value: { chunkOrdinal: 0, confidence: "none", reason: "NO_RELIABLE_MATCH" } });
+    expect(await repository.listDocuments()).toMatchObject({ ok: true, value: [{ documentId: input.documentId, progressRatio: 1 }] });
     repository.close();
   });
 

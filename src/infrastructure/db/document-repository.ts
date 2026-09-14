@@ -5,6 +5,7 @@ import type {
   DocumentSummary,
   ImportIdentityMatches,
   ReaderChunk,
+  ResolvedReaderAnchor,
   RebuildSourceSnapshot,
   ReaderStateSnapshot,
   RepositoryErrorCode,
@@ -15,6 +16,7 @@ import type {
 } from "@/application/ports/document-repository";
 import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import type { BlockAnchor, OutlineItem, SectionLayout, SplitStrategy } from "@/domain/content/pipeline-types";
+import { mapSemanticAnchor } from "@/domain/reading/progress-mapping";
 import {
   StorageAtomicitySpikeRepository,
   type StorageSpikeResult,
@@ -126,12 +128,16 @@ export class DexieDocumentRepository implements DocumentRepository {
     if (!isChunkWindow(chunks.value, input)) return failure("INVALID_PERSISTED_RECORD");
     return success(chunks.value.map((chunk) => ({
       anchors: chunk.blockAnchors.map((anchor) => ({
-        blockId: anchor.blockId,
-        blockOrdinalWithinHeading: anchor.blockOrdinalWithinHeading,
-        headingPathKey: anchor.headingPathKey,
-        intraBlockRatio: 0,
-        overallSourceRatio: version.value.chunkCount <= 1 ? 0 : chunk.ordinal / (version.value.chunkCount - 1),
-        versionId: version.value.id,
+        anchor: {
+          blockId: anchor.blockId,
+          blockOrdinalWithinHeading: anchor.blockOrdinalWithinHeading,
+          headingPathKey: anchor.headingPathKey,
+          intraBlockRatio: 0,
+          overallSourceRatio: clampRatio(anchor.sourceStart / Math.max(1, version.value.charLength)),
+          versionId: version.value.id,
+        },
+        sourceEndRatio: clampRatio(anchor.sourceEnd / Math.max(1, version.value.charLength)),
+        sourceStartRatio: clampRatio(anchor.sourceStart / Math.max(1, version.value.charLength)),
       })),
       ...(chunk.diagnosticCode === undefined ? {} : { diagnosticCode: chunk.diagnosticCode }),
       estimatedCost: chunk.estimatedCost,
@@ -141,12 +147,19 @@ export class DexieDocumentRepository implements DocumentRepository {
     })));
   }
 
-  public async resolveCurrentAnchor(input: Parameters<DocumentRepository["resolveCurrentAnchor"]>[0]): Promise<RepositoryResult<number | undefined>> {
+  public async resolveCurrentAnchor(input: Parameters<DocumentRepository["resolveCurrentAnchor"]>[0]): Promise<RepositoryResult<ResolvedReaderAnchor>> {
     const version = await this.storage.getCurrentReadyVersion(input.documentId);
     if (!version.ok) return failure(version.error.code);
-    if (input.anchor.versionId !== version.value.id || !isSemanticAnchor(input.anchor)) return success(undefined);
-    const result = await this.storage.findChunkOrdinalByBlockId(version.value.id, input.anchor.blockId);
-    return result.ok ? success(result.value) : failure(result.error.code);
+    if (!isSemanticAnchor(input.anchor)) return failure("INVALID_PERSISTED_RECORD");
+    const indexResult = await this.storage.getChunkAnchorIndex(version.value.id);
+    if (!indexResult.ok) return failure(indexResult.error.code);
+    const index = indexResult.value;
+    if (index.some((entry) => !nonNegative(entry.chunkOrdinal) || !isBlockAnchor(entry.anchor, 0, Number.MAX_SAFE_INTEGER))) return failure("INVALID_PERSISTED_RECORD");
+    if (input.anchor.versionId !== version.value.id) return success({ chunkOrdinal: 0, confidence: "none", reason: index.length === 0 ? "TARGET_EMPTY" : "NO_RELIABLE_MATCH" });
+    const blocks = index.map((entry) => entry.anchor);
+    const mapping = mapSemanticAnchor(input.anchor, { blocks, sourceLength: version.value.charLength, versionId: version.value.id }, { blocks, sourceLength: version.value.charLength, versionId: version.value.id });
+    const chunkOrdinal = mapping.anchor === undefined ? 0 : index.find((entry) => entry.anchor.blockId === mapping.anchor?.blockId)?.chunkOrdinal ?? 0;
+    return success({ ...(mapping.anchor === undefined ? {} : { anchor: mapping.anchor }), chunkOrdinal, confidence: mapping.confidence, reason: mapping.reason });
   }
 
   public async getReaderState(documentId: string): Promise<RepositoryResult<ReaderStateSnapshot | undefined>> {
@@ -188,7 +201,7 @@ function failure(storageCode: string): RepositoryResult<never> {
 }
 function isRepositoryErrorCode(value: string): value is RepositoryErrorCode { return ["DB_UNAVAILABLE", "MIGRATION_FAILED", "STALE_DERIVED", "QUOTA_EXCEEDED", "COMMIT_CONFLICT", "DOCUMENT_NOT_FOUND", "INVALID_PERSISTED_RECORD", "UNKNOWN_STORAGE_ERROR"].includes(value); }
 function isDocumentSummary(value: DocumentSummary): boolean {
-  return nonEmpty(value.documentId) && nonEmpty(value.currentVersionId) && nonEmpty(value.title) && nonEmpty(value.fileName) && hash(value.contentHash) && nonNegative(value.activityAt) && nonNegative(value.chunkCount);
+  return nonEmpty(value.documentId) && nonEmpty(value.currentVersionId) && nonEmpty(value.title) && nonEmpty(value.fileName) && hash(value.contentHash) && nonNegative(value.activityAt) && nonNegative(value.chunkCount) && ratio(value.progressRatio);
 }
 function isIdentityMatch(value: { readonly documentId: unknown; readonly currentVersionId: unknown; readonly title: unknown; readonly fileName: unknown }): value is ImportIdentityMatches["exactDuplicates"][number] {
   return nonEmpty(value.documentId) && nonEmpty(value.currentVersionId) && nonEmpty(value.title) && nonEmpty(value.fileName);
@@ -243,13 +256,14 @@ function isLayouts(value: unknown, chunkCount: number): value is Record<SplitStr
 function isSplitStrategy(value: string): value is SplitStrategy { return ["auto", "h1", "h2", "h3", "whole"].includes(value); }
 function isReadingMode(value: unknown): value is ReaderStateSnapshot["readingMode"] { return value === "continuous" || value === "sections"; }
 function isModeOrigin(value: unknown): value is ReaderStateSnapshot["modeOrigin"] { return value === "auto" || value === "user"; }
-function isReaderState(value: unknown): value is ReaderStateSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.documentId) && (record.readingMode === "continuous" || record.readingMode === "sections") && (record.modeOrigin === "auto" || record.modeOrigin === "user") && ["auto", "h1", "h2", "h3", "whole"].includes(record.splitStrategy as string) && (record.anchor === undefined || isSemanticAnchor(record.anchor)) && ratio(record.progressRatio) && nonNegative(record.updatedAt); }
+function isReaderState(value: unknown): value is ReaderStateSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.documentId) && (record.readingMode === "continuous" || record.readingMode === "sections") && (record.modeOrigin === "auto" || record.modeOrigin === "user") && ["auto", "h1", "h2", "h3", "whole"].includes(record.splitStrategy as string) && (record.anchor === undefined || isSemanticAnchor(record.anchor)) && ratio(record.progressRatio) && (record.lastSectionId === undefined || nonEmpty(record.lastSectionId)) && nonNegative(record.updatedAt); }
 function isSemanticAnchor(value: unknown): value is SemanticAnchorSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.versionId) && nonEmpty(record.headingPathKey) && nonEmpty(record.blockId) && nonNegative(record.blockOrdinalWithinHeading) && ratio(record.intraBlockRatio) && ratio(record.overallSourceRatio); }
 function isPreferences(value: unknown): value is AppPreferencesSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return (record.theme === "system" || record.theme === "light" || record.theme === "dark") && typeof record.remoteImagesEnabled === "boolean" && typeof record.desktopTocCollapsed === "boolean" && nonNegative(record.updatedAt); }
 function nonEmpty(value: unknown): value is string { return typeof value === "string" && value.trim().length > 0; }
 function hash(value: unknown): value is string { return typeof value === "string" && /^[a-f0-9]{64}$/u.test(value); }
 function nonNegative(value: unknown): value is number { return typeof value === "number" && Number.isSafeInteger(value) && value >= 0; }
 function ratio(value: unknown): value is number { return typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1; }
+function clampRatio(value: number): number { return Math.min(1, Math.max(0, Number.isFinite(value) ? value : 0)); }
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
 function isBlobLike(value: unknown): value is Blob { return typeof value === "object" && value !== null && "size" in value && typeof value.size === "number" && "arrayBuffer" in value && typeof value.arrayBuffer === "function"; }
 

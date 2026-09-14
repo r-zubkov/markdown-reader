@@ -4,6 +4,7 @@ import type {
   SectionLayout,
   SplitStrategy,
 } from "@/domain/content/pipeline-types";
+import type { MappingReasonCode } from "@/domain/reading/progress-mapping";
 
 export type RepositoryErrorCode =
   | "DB_UNAVAILABLE"
@@ -27,6 +28,7 @@ export interface DocumentSummary {
   readonly activityAt: number;
   readonly chunkCount: number;
   readonly contentHash: string;
+  readonly progressRatio: number;
 }
 
 export interface ImportIdentityMatch {
@@ -79,10 +81,23 @@ export interface SemanticAnchorSnapshot {
   readonly overallSourceRatio: number;
 }
 
+export interface ReaderBlockAnchorSnapshot {
+  readonly anchor: SemanticAnchorSnapshot;
+  readonly sourceStartRatio: number;
+  readonly sourceEndRatio: number;
+}
+
+export interface ResolvedReaderAnchor {
+  readonly anchor?: SemanticAnchorSnapshot;
+  readonly chunkOrdinal: number;
+  readonly confidence: "exact" | "approximate" | "none";
+  readonly reason: MappingReasonCode;
+}
+
 export interface ReaderChunk {
   readonly ordinal: number;
   readonly html: SanitizedHtml;
-  readonly anchors: readonly SemanticAnchorSnapshot[];
+  readonly anchors: readonly ReaderBlockAnchorSnapshot[];
   readonly estimatedCost: number;
   readonly renderState: "ready" | "safe-fallback";
   readonly diagnosticCode?: "FRAGMENT_FALLBACK" | "HIGHLIGHT_FAILED" | "OVERSIZED_NODE";
@@ -113,6 +128,7 @@ export interface ReaderStateSnapshot {
   readonly splitStrategy: SplitStrategy;
   readonly anchor?: SemanticAnchorSnapshot;
   readonly progressRatio: number;
+  readonly lastSectionId?: string;
   readonly updatedAt: number;
 }
 
@@ -159,12 +175,13 @@ export interface DocumentRepository {
   resolveCurrentAnchor(input: {
     readonly documentId: string;
     readonly anchor: SemanticAnchorSnapshot;
-  }): Promise<RepositoryResult<number | undefined>>;
+  }): Promise<RepositoryResult<ResolvedReaderAnchor>>;
   getReaderState(documentId: string): Promise<RepositoryResult<ReaderStateSnapshot | undefined>>;
   saveReaderAnchor(input: {
     readonly documentId: string;
     readonly anchor: SemanticAnchorSnapshot;
     readonly progressRatio: number;
+    readonly lastSectionId?: string;
     readonly updatedAt: number;
   }): Promise<RepositoryResult<void>>;
   saveReaderPresentation(input: {

@@ -51,7 +51,8 @@ function LibraryList({ library, onImport, onRetry }: { readonly library: Library
 
 function DocumentItem({ document }: { readonly document: DocumentSummary }) {
   const itemLabel = `${appCopy.library.open}: ${document.title}${document.fileName === document.title ? "" : ` — ${document.fileName}`}`;
-  return <li className="library-item"><Link aria-label={itemLabel} className="library-list__link" to={`/documents/${document.documentId}`}><span className="library-item__title">{document.title}</span>{document.fileName === document.title ? null : <small>{document.fileName}</small>}<span className="library-item__metadata">{appCopy.library.ready} · {document.chunkCount} {appCopy.library.fragments}</span><span className="library-item__progress">{appCopy.library.progress}</span></Link></li>;
+  const progress = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0, style: "percent" }).format(document.progressRatio);
+  return <li className="library-item"><Link aria-label={itemLabel} className="library-list__link" to={`/documents/${document.documentId}`}><span className="library-item__title">{document.title}</span>{document.fileName === document.title ? null : <small>{document.fileName}</small>}<span className="library-item__metadata">{appCopy.library.ready} · {document.chunkCount} {appCopy.library.fragments}</span><span className="library-item__progress">{appCopy.library.progress}: {progress}<progress aria-label={`${appCopy.library.progress}: ${document.title}`} max={1} value={document.progressRatio} /></span></Link></li>;
 }
 
 function createImportWorker() { return new Worker(new URL("../../workers/import-worker.ts", import.meta.url), { type: "module" }); }

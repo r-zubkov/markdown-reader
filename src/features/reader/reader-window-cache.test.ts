@@ -61,7 +61,7 @@ class CacheRepository implements DocumentRepository {
     }
     return Promise.resolve(ok(createChunks(input.startOrdinal, input.endOrdinalInclusive)));
   }
-  public resolveCurrentAnchor(): Promise<RepositoryResult<number | undefined>> { return Promise.resolve(ok(undefined)); }
+  public resolveCurrentAnchor(): Promise<RepositoryResult<{ readonly chunkOrdinal: 0; readonly confidence: "none"; readonly reason: "NO_RELIABLE_MATCH" }>> { return Promise.resolve(ok({ chunkOrdinal: 0, confidence: "none", reason: "NO_RELIABLE_MATCH" })); }
   public getReaderState(): Promise<RepositoryResult<ReaderStateSnapshot | undefined>> { return Promise.resolve(ok(undefined)); }
   public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public saveReaderPresentation(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }

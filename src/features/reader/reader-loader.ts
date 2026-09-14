@@ -2,6 +2,8 @@ import type {
   CurrentDocumentSnapshot,
   DocumentRepository,
   ReaderChunk,
+  ReaderStateSnapshot,
+  ResolvedReaderAnchor,
   SemanticAnchorSnapshot,
 } from "@/application/ports/document-repository";
 import { resolveReaderHash, type HashResolution } from "@/features/reader/outline-resolver";
@@ -11,7 +13,7 @@ import { resolveReaderPresentation, type ReaderPresentation } from "@/domain/rea
 export const READER_INITIAL_WINDOW_SIZE = READER_VIRTUAL_CONFIG.initialWindowSize;
 
 export type ReaderLoadResult =
-  | { readonly status: "ready"; readonly document: CurrentDocumentSnapshot; readonly chunks: readonly ReaderChunk[]; readonly targetOrdinal: number; readonly hashResolution: HashResolution; readonly requestHash: string; readonly presentation: ReaderPresentation }
+  | { readonly status: "ready"; readonly document: CurrentDocumentSnapshot; readonly chunks: readonly ReaderChunk[]; readonly targetOrdinal: number; readonly targetAnchor?: SemanticAnchorSnapshot; readonly restore?: ResolvedReaderAnchor; readonly readerState?: ReaderStateSnapshot; readonly hashResolution: HashResolution; readonly requestHash: string; readonly presentation: ReaderPresentation }
   | { readonly status: "empty"; readonly document: CurrentDocumentSnapshot }
   | { readonly status: "missing" }
   | { readonly status: "stale" }
@@ -27,7 +29,13 @@ export async function loadReader(repository: DocumentRepository, documentId: str
   const hashResolution = resolveReaderHash(hash, document.outline);
   const stateResult = await repository.getReaderState(documentId);
   if (!stateResult.ok) return loadFailure(stateResult.error.code);
-  const targetOrdinal = hashResolution.kind === "valid" ? hashResolution.heading.chunkOrdinal : await resolveTargetOrdinal(repository, documentId, stateResult.value?.anchor);
+  let restore: ResolvedReaderAnchor | undefined;
+  if (hashResolution.kind !== "valid" && stateResult.value?.anchor !== undefined) {
+    const restoreResult = await repository.resolveCurrentAnchor({ anchor: stateResult.value.anchor, documentId });
+    if (!restoreResult.ok) return loadFailure(restoreResult.error.code);
+    restore = restoreResult.value;
+  }
+  const targetOrdinal = hashResolution.kind === "valid" ? hashResolution.heading.chunkOrdinal : restore?.chunkOrdinal ?? 0;
   const window = boundedWindow(document.chunkCount, targetOrdinal);
   const chunksResult = await repository.getCurrentChunkWindow({
     documentId,
@@ -36,19 +44,24 @@ export async function loadReader(repository: DocumentRepository, documentId: str
     startOrdinal: window.startOrdinal,
   });
   if (!chunksResult.ok) return loadFailure(chunksResult.error.code);
-  return { chunks: chunksResult.value, document, hashResolution, presentation: resolveReaderPresentation(document.layouts, stateResult.value), requestHash: hash, status: "ready", targetOrdinal };
+  return {
+    chunks: chunksResult.value,
+    document,
+    hashResolution,
+    presentation: resolveReaderPresentation(document.layouts, stateResult.value),
+    ...(stateResult.value === undefined ? {} : { readerState: stateResult.value }),
+    requestHash: hash,
+    ...(restore === undefined ? {} : { restore }),
+    ...(restore?.anchor === undefined ? {} : { targetAnchor: restore.anchor }),
+    status: "ready",
+    targetOrdinal,
+  };
 }
 
 export function boundedWindow(chunkCount: number, targetOrdinal: number): { readonly startOrdinal: number; readonly endOrdinalInclusive: number } {
   const cappedTarget = Math.min(Math.max(targetOrdinal, 0), chunkCount - 1);
   const startOrdinal = Math.max(0, Math.min(cappedTarget - Math.floor(READER_INITIAL_WINDOW_SIZE / 2), Math.max(0, chunkCount - READER_INITIAL_WINDOW_SIZE)));
   return { startOrdinal, endOrdinalInclusive: Math.min(chunkCount - 1, startOrdinal + READER_INITIAL_WINDOW_SIZE - 1) };
-}
-
-async function resolveTargetOrdinal(repository: DocumentRepository, documentId: string, anchor: SemanticAnchorSnapshot | undefined): Promise<number> {
-  if (anchor === undefined) return 0;
-  const result = await repository.resolveCurrentAnchor({ anchor, documentId });
-  return result.ok && result.value !== undefined ? result.value : 0;
 }
 
 function loadFailure(code: string): Exclude<ReaderLoadResult, { readonly status: "ready" } | { readonly status: "empty" }> {

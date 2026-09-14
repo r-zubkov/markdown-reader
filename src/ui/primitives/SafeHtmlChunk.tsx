@@ -1,17 +1,24 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { SanitizedHtml } from "@/application/ports/document-repository";
+import type { ReaderBlockAnchorSnapshot, SanitizedHtml } from "@/application/ports/document-repository";
+import { markMeaningfulBlocks } from "@/features/reader/reader-location-observer";
 import { appCopy } from "@/shared/i18n/ru";
 
 interface SafeHtmlChunkProps {
+  readonly anchors?: readonly ReaderBlockAnchorSnapshot[];
   readonly html: SanitizedHtml;
   readonly ordinal: number;
 }
 
 /** The sole HTML injection boundary; its input can only originate in the validated repository. */
-export const SafeHtmlChunk = memo(function SafeHtmlChunk({ html, ordinal }: SafeHtmlChunkProps) {
+export const SafeHtmlChunk = memo(function SafeHtmlChunk({ anchors = [], html, ordinal }: SafeHtmlChunkProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [failedMediaCount, setFailedMediaCount] = useState(0);
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (content !== null) markMeaningfulBlocks(content, anchors);
+  }, [anchors, html]);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -92,4 +99,4 @@ export const SafeHtmlChunk = memo(function SafeHtmlChunk({ html, ordinal }: Safe
     <div className="reader-content reader-chunk__content" data-reader-ordinal={ordinal} dangerouslySetInnerHTML={{ __html: html.value }} ref={contentRef} />
     {failedMediaCount > 0 ? <p className="reader-content__media-error" role="status">{navigator.onLine ? appCopy.reader.mediaError : appCopy.reader.mediaOffline}</p> : null}
   </>;
-}, (previous, next) => previous.ordinal === next.ordinal && previous.html.pipelineVersion === next.html.pipelineVersion && previous.html.value === next.html.value);
+}, (previous, next) => previous.ordinal === next.ordinal && previous.anchors === next.anchors && previous.html.pipelineVersion === next.html.pipelineVersion && previous.html.value === next.html.value);

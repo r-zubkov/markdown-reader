@@ -15,8 +15,13 @@ import type {
   DocumentRepository,
   ReaderChunk,
   RepositoryErrorCode,
-  SemanticAnchorSnapshot,
 } from "@/application/ports/document-repository";
+import {
+  isPageEndReached,
+  observeTopMeaningfulLocation,
+  READER_LOCATION_LINE_PX,
+  type ObservedLocation,
+} from "@/features/reader/reader-location-observer";
 import {
   createReaderRangeExtractor,
   estimateReaderChunkSize,
@@ -26,11 +31,7 @@ import { ReaderWindowCache } from "@/features/reader/reader-window-cache";
 import { appCopy } from "@/shared/i18n/ru";
 import { SafeHtmlChunk } from "@/ui/primitives/SafeHtmlChunk";
 
-export interface ObservedLocation {
-  readonly anchor?: SemanticAnchorSnapshot;
-  readonly chunkOrdinal: number;
-  readonly progressRatio: number;
-}
+export type { ObservedLocation } from "@/features/reader/reader-location-observer";
 
 interface ReaderViewportProps {
   readonly document: CurrentDocumentSnapshot;
@@ -40,7 +41,9 @@ interface ReaderViewportProps {
   readonly onLocationChange: (location: ObservedLocation) => void;
   readonly onTargetSettled: () => void;
   readonly repository: DocumentRepository;
+  readonly targetBlockId?: string;
   readonly targetId?: string;
+  readonly targetIntraBlockRatio?: number;
   readonly targetOrdinal: number;
   readonly targetRequestKey: string;
 }
@@ -51,7 +54,9 @@ interface PendingLayoutAnchor {
 }
 
 interface LockedTarget {
+  readonly blockId: string | undefined;
   readonly id: string | undefined;
+  readonly intraBlockRatio: number;
   readonly key: string;
   readonly ordinal: number;
 }
@@ -64,7 +69,9 @@ export function ReaderViewport({
   onLocationChange,
   onTargetSettled,
   repository,
+  targetBlockId,
   targetId,
+  targetIntraBlockRatio = 0,
   targetOrdinal,
   targetRequestKey,
 }: ReaderViewportProps) {
@@ -172,7 +179,7 @@ export function ReaderViewport({
 
   useLayoutEffect(() => {
     if (settledTargetRef.current === targetRequestKey) return;
-    targetLockRef.current = { id: targetId, key: targetRequestKey, ordinal: targetOrdinal };
+    targetLockRef.current = { blockId: targetBlockId, id: targetId, intraBlockRatio: targetIntraBlockRatio, key: targetRequestKey, ordinal: targetOrdinal };
     setIsJumping(true);
     virtualizer.scrollToIndex(targetOrdinal, { align: "start", behavior: "auto" });
     let frame = 0;
@@ -180,13 +187,11 @@ export function ReaderViewport({
     const settle = () => {
       attempts += 1;
       virtualizer.measure();
-      const target = targetId === undefined
-        ? getChunkElement(targetOrdinal)
-        : document.getElementById(targetId);
+      const target = findTargetElement(targetOrdinal, targetId, targetBlockId);
       if (!(target instanceof HTMLElement)) virtualizer.scrollToIndex(targetOrdinal, { align: "start", behavior: "auto" });
       const modalOverlayOpen = document.querySelector('[role="dialog"]') !== null;
       if (target instanceof HTMLElement) {
-        target.scrollIntoView({ block: "start", behavior: "auto" });
+        alignTarget(target, targetBlockId === undefined ? 0 : targetIntraBlockRatio);
         if (focusTarget && !modalOverlayOpen) {
           target.tabIndex = -1;
           target.focus({ preventScroll: true });
@@ -205,7 +210,7 @@ export function ReaderViewport({
     };
     frame = window.requestAnimationFrame(settle);
     return () => { window.cancelAnimationFrame(frame); };
-  }, [cache, cacheRevision, documentSnapshot.chunkCount, fetchCount, focusTarget, onLocationChange, onTargetSettled, targetId, targetOrdinal, targetRequestKey, virtualizer]);
+  }, [cache, cacheRevision, documentSnapshot.chunkCount, fetchCount, focusTarget, onLocationChange, onTargetSettled, targetBlockId, targetId, targetIntraBlockRatio, targetOrdinal, targetRequestKey, virtualizer]);
 
   useEffect(() => {
     let frame = 0;
@@ -214,8 +219,8 @@ export function ReaderViewport({
       if (locked === null) return;
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
-        const target = locked.id === undefined ? getChunkElement(locked.ordinal) : document.getElementById(locked.id);
-        if (target instanceof HTMLElement) target.scrollIntoView({ block: "start", behavior: "auto" });
+        const target = findTargetElement(locked.ordinal, locked.id, locked.blockId);
+        if (target instanceof HTMLElement) alignTarget(target, locked.blockId === undefined ? 0 : locked.intraBlockRatio);
         else virtualizer.scrollToIndex(locked.ordinal, { align: "start", behavior: "auto" });
       });
     };
@@ -382,6 +387,7 @@ export function ReaderViewport({
     data-mounted-count={virtualItems.length}
     data-remeasuring={String(isRemeasuring)}
     data-target-ordinal={targetOrdinal}
+    data-target-block-id={targetBlockId ?? ""}
     data-testid="reader-viewport"
     onBlurCapture={handleBlur}
     onFocusCapture={handleFocus}
@@ -411,6 +417,7 @@ export function ReaderViewport({
           {entry?.kind === "chunk" ? <>
             {entry.chunk.renderState === "safe-fallback" ? <p className="reader-chunk__local-status" role="note">{appCopy.reader.safeFallback}</p> : null}
             <SafeHtmlChunk
+              anchors={entry.chunk.anchors}
               html={entry.chunk.html}
               ordinal={entry.chunk.ordinal}
             />
@@ -462,17 +469,32 @@ function emitObservedLocation(
   chunkCount: number,
   callback: (location: ObservedLocation) => void,
 ): void {
-  const line = READER_VIRTUAL_CONFIG.scrollPaddingStart;
-  const candidates = [...document.querySelectorAll<HTMLElement>("[data-reader-virtual-ordinal]")]
-    .map((element) => ({ element, rect: element.getBoundingClientRect() }))
-    .filter(({ rect }) => rect.bottom > line)
-    .sort((left, right) => left.rect.top - right.rect.top);
-  const ordinal = Number(candidates[0]?.element.dataset.readerVirtualOrdinal);
-  if (!Number.isInteger(ordinal)) return;
-  const entry = cache.peek(ordinal);
-  const anchor = entry?.kind === "chunk" ? entry.chunk.anchors[0] : undefined;
-  const progressRatio = anchor?.overallSourceRatio ?? (chunkCount <= 1 ? 0 : ordinal / (chunkCount - 1));
-  callback({ ...(anchor === undefined ? {} : { anchor }), chunkOrdinal: ordinal, progressRatio });
+  const root = document.querySelector<HTMLElement>(".reader-viewport");
+  if (root === null) return;
+  const location = observeTopMeaningfulLocation({
+    pageEndReached: isPageEndReached(),
+    resolveAnchor: (ordinal, blockIndex) => {
+      const entry = cache.peek(ordinal);
+      if (entry?.kind !== "chunk") return undefined;
+      const block = entry.chunk.anchors[blockIndex];
+      if (block === undefined) return undefined;
+      return { block, isFinalBlock: ordinal === chunkCount - 1 && blockIndex === entry.chunk.anchors.length - 1 };
+    },
+    root,
+  });
+  if (location !== undefined) callback(location);
+}
+
+function findTargetElement(ordinal: number, id: string | undefined, blockId: string | undefined): HTMLElement | null {
+  if (id !== undefined) return document.getElementById(id);
+  if (blockId !== undefined) return [...document.querySelectorAll<HTMLElement>("[data-reader-block-id]")].find((element) => element.dataset.readerBlockId === blockId) ?? null;
+  return getChunkElement(ordinal);
+}
+
+function alignTarget(target: HTMLElement, intraBlockRatio: number): void {
+  target.scrollIntoView({ block: "start", behavior: "auto" });
+  const offset = Math.max(0, target.getBoundingClientRect().height) * Math.min(1, Math.max(0, intraBlockRatio)) - READER_LOCATION_LINE_PX;
+  if (offset !== 0) window.scrollBy(0, offset);
 }
 
 function ReaderChunkPlaceholder({ ordinal }: { readonly ordinal: number }) {

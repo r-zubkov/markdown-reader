@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("P01-T04 first reader vertical slice", () => {
-  test("opens a bounded safe window, saves a semantic anchor, restores it after reload, and returns to Library", async ({ page }) => {
+  test("opens a bounded safe window, automatically saves a semantic anchor, restores it after reload, and returns to Library", async ({ page }) => {
     await page.goto("/");
     await page.getByTestId("library-import-trigger").click();
     await page.getByTestId("import-file-input").setInputFiles({
@@ -14,7 +14,7 @@ test.describe("P01-T04 first reader vertical slice", () => {
     await expect(page.locator("#reader-title")).toHaveText("Reader document");
     await expect(page.locator(".reader-content")).toContainText("A safe paragraph.");
     await expect(page.locator("[data-reader-ordinal]")).toHaveCount(1);
-    await page.getByTestId("reader-save-block-0").click();
+    await page.waitForTimeout(900);
     await page.reload();
     await expect(page.locator("[data-reader-ordinal='0']")).toBeVisible();
 
