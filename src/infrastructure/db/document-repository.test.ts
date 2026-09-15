@@ -4,7 +4,7 @@ import {
   DexieDocumentRepository,
   PIPELINE_VERSION,
 } from "@/infrastructure/db/document-repository";
-import { deleteStorageAtomicitySpikeDatabase } from "@/infrastructure/db/storage-atomicity-spike";
+import { createStorageAtomicitySpikeDatabase, deleteStorageAtomicitySpikeDatabase, type StorageAtomicityFailureHooks } from "@/infrastructure/db/storage-atomicity-spike";
 import { createStorageChunks, createStorageStageInput } from "@/test/fixtures/storage-atomicity-fixtures";
 
 const databaseNames: string[] = [];
@@ -139,6 +139,67 @@ describe("DexieDocumentRepository", () => {
     } });
     repository.close();
   });
+
+  it("transactionally deletes all and only the exact Document records, then updates the live Library", async () => {
+    const databaseName = `markdown-reader-repository-delete-exact-${crypto.randomUUID()}`;
+    databaseNames.push(databaseName);
+    const repository = new DexieDocumentRepository(databaseName);
+    const target = createStorageStageInput({ chunkCount: 2, documentId: "target", jobId: "target-job", versionId: "target-version" });
+    const targetInput = { ...target, pipelineVersion: PIPELINE_VERSION };
+    const other = createStorageStageInput({ chunkCount: 1, documentId: "other", jobId: "other-job", versionId: "other-version" });
+    const otherInput = { ...other, pipelineVersion: PIPELINE_VERSION };
+    for (const input of [targetInput, otherInput]) {
+      await repository.stageVersion(input);
+      await repository.appendChunkBatch({ batchOrdinal: 0, chunks: createStorageChunks(input.chunkCount, { pipelineVersion: PIPELINE_VERSION }), jobId: input.jobId, versionId: input.versionId });
+      await repository.commitVersion({ jobId: input.jobId, readyAt: input.importedAt + 1, versionId: input.versionId });
+    }
+    const historic = createStorageStageInput({ chunkCount: 1, documentId: targetInput.documentId, expectedCurrentVersionId: targetInput.versionId, jobId: "target-replacement-job", versionId: "target-replacement-version" });
+    const historicInput = { ...historic, pipelineVersion: PIPELINE_VERSION };
+    await repository.stageVersion(historicInput);
+    await repository.appendChunkBatch({ batchOrdinal: 0, chunks: createStorageChunks(1, { pipelineVersion: PIPELINE_VERSION }), jobId: historicInput.jobId, versionId: historicInput.versionId });
+    await repository.commitVersion({ jobId: historicInput.jobId, readyAt: historicInput.importedAt + 1, versionId: historicInput.versionId });
+    await repository.saveReaderAnchor({ anchor: { blockId: "block-0", blockOrdinalWithinHeading: 0, headingPathKey: "1:storage-spike[1]", intraBlockRatio: 0, overallSourceRatio: 0, versionId: historicInput.versionId }, documentId: targetInput.documentId, progressRatio: 0, updatedAt: 10 });
+
+    let stopObserving = (): void => undefined;
+    const observedEmptyTarget = new Promise<void>((resolve, reject) => {
+      stopObserving = repository.observeDocuments((result) => {
+        if (!result.ok) { reject(new Error(result.error.code)); return; }
+        if (result.value.length === 1 && result.value[0]?.documentId === otherInput.documentId) resolve();
+      });
+    });
+    expect(await repository.deleteDocument(targetInput.documentId)).toEqual({ ok: true, value: { status: "deleted" } });
+    await observedEmptyTarget;
+    stopObserving();
+
+    const database = createStorageAtomicitySpikeDatabase(databaseName);
+    await database.open();
+    try {
+      expect(await database.table("documents").get(targetInput.documentId)).toBeUndefined();
+      expect(await database.table("documentVersions").where("documentId").equals(targetInput.documentId).count()).toBe(0);
+      expect(await database.table("chunks").where("versionId").equals(targetInput.versionId).count()).toBe(0);
+      expect(await database.table("chunks").where("versionId").equals(historicInput.versionId).count()).toBe(0);
+      expect(await database.table("readerStates").get(targetInput.documentId)).toBeUndefined();
+      expect(await database.table("documents").get(otherInput.documentId)).toBeDefined();
+    } finally {
+      database.close();
+    }
+    repository.close();
+  });
+
+  it("is idempotent for a stale exact id and rolls back all records when deletion fails", async () => {
+    const repository = createRepository("delete-failure", { beforeDocumentDelete: () => { throw new Error("forced failure"); } });
+    await commitFixture(repository, { contentHash: "d".repeat(64), documentId: "safe", fileName: "safe.md", jobId: "safe-job", title: "Safe", versionId: "safe-version" });
+    expect(await repository.deleteDocument("safe")).toMatchObject({ ok: false });
+    expect(await repository.listDocuments()).toMatchObject({ ok: true, value: [{ documentId: "safe" }] });
+    repository.close();
+
+    const idempotentRepository = createRepository("delete-idempotent");
+    expect(await idempotentRepository.deleteDocument("missing")).toEqual({ ok: true, value: { status: "not-found" } });
+    await commitFixture(idempotentRepository, { contentHash: "e".repeat(64), documentId: "removed", fileName: "removed.md", jobId: "removed-job", title: "Removed", versionId: "removed-version" });
+    await idempotentRepository.deleteDocument("removed");
+    expect(await idempotentRepository.deleteDocument("removed")).toEqual({ ok: true, value: { status: "not-found" } });
+    idempotentRepository.close();
+  });
 });
 
 async function commitFixture(repository: DexieDocumentRepository, options: {
@@ -157,8 +218,8 @@ async function commitFixture(repository: DexieDocumentRepository, options: {
   await repository.commitVersion({ jobId: input.jobId, readyAt: input.importedAt + 1, versionId: input.versionId });
 }
 
-function createRepository(testName: string): DexieDocumentRepository {
+function createRepository(testName: string, failureHooks?: StorageAtomicityFailureHooks): DexieDocumentRepository {
   const name = `markdown-reader-repository-${testName}-${crypto.randomUUID()}`;
   databaseNames.push(name);
-  return new DexieDocumentRepository(name);
+  return new DexieDocumentRepository(name, failureHooks);
 }

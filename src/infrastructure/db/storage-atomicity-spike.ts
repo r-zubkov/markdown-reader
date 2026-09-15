@@ -201,6 +201,12 @@ export interface CleanupResult {
   readonly removedChunkCount: number;
 }
 
+export interface DeleteStorageDocumentResult {
+  readonly deleted: boolean;
+  readonly removedChunkCount: number;
+  readonly removedVersionIds: readonly string[];
+}
+
 export interface StorageAtomicityFailureHooks {
   readonly afterChunksAdded?: (context: {
     readonly versionId: string;
@@ -212,6 +218,9 @@ export interface StorageAtomicityFailureHooks {
   }) => void | Promise<void>;
   readonly beforeCleanupDelete?: (context: {
     readonly versionId: string;
+  }) => void | Promise<void>;
+  readonly beforeDocumentDelete?: (context: {
+    readonly documentId: string;
   }) => void | Promise<void>;
 }
 
@@ -465,6 +474,49 @@ export class StorageAtomicitySpikeRepository {
           }
 
           return await this.removeVersions([versionId]);
+        },
+      );
+
+      return succeeded(value);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
+  /** Removes exactly one Document and every record owned by it in a single transaction. */
+  public async deleteDocument(documentId: string): Promise<StorageSpikeResult<DeleteStorageDocumentResult>> {
+    try {
+      if (!isNonEmptyString(documentId)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Document delete id is invalid.");
+      }
+
+      const value = await this.database.transaction(
+        "rw",
+        this.documents,
+        this.versions,
+        this.chunks,
+        this.readerStates,
+        async () => {
+          const document = await this.documents.get(documentId);
+          if (document === undefined) {
+            return { deleted: false, removedChunkCount: 0, removedVersionIds: [] };
+          }
+
+          await this.failureHooks.beforeDocumentDelete?.({ documentId });
+          const versions = await this.versions.where("documentId").equals(documentId).toArray();
+          const removedVersionIds = versions.map((version) => version.id);
+          let removedChunkCount = 0;
+
+          for (const versionId of removedVersionIds) {
+            const chunkKeys = await this.chunks.where("versionId").equals(versionId).primaryKeys();
+            removedChunkCount += chunkKeys.length;
+            await this.chunks.bulkDelete(chunkKeys);
+          }
+
+          await this.readerStates.delete(documentId);
+          await this.versions.bulkDelete(removedVersionIds);
+          await this.documents.delete(documentId);
+          return { deleted: true, removedChunkCount, removedVersionIds };
         },
       );
 

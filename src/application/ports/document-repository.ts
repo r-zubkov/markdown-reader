@@ -31,6 +31,11 @@ export interface DocumentSummary {
   readonly progressRatio: number;
 }
 
+export interface DeleteDocumentResult {
+  /** `not-found` is an idempotent stale-entry outcome, never a fuzzy match. */
+  readonly status: "deleted" | "not-found";
+}
+
 export interface ImportIdentityMatch {
   readonly documentId: string;
   readonly currentVersionId: string;
@@ -164,6 +169,7 @@ export interface DocumentRepository {
   }): Promise<RepositoryResult<ImportIdentityMatches>>;
   listDocuments(): Promise<RepositoryResult<readonly DocumentSummary[]>>;
   observeDocuments(listener: (result: RepositoryResult<readonly DocumentSummary[]>) => void): () => void;
+  deleteDocument(documentId: string): Promise<RepositoryResult<DeleteDocumentResult>>;
   getCurrentDocument(documentId: string): Promise<RepositoryResult<CurrentDocumentSnapshot>>;
   getCurrentSourceForRebuild(documentId: string): Promise<RepositoryResult<RebuildSourceSnapshot>>;
   getCurrentChunkWindow(input: {

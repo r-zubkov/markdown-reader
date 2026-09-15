@@ -29,6 +29,7 @@ class ReaderRepository implements DocumentRepository {
   public findImportIdentityMatches(): Promise<RepositoryResult<{ readonly exactDuplicates: readonly []; readonly possibleUpdates: readonly [] }>> { return Promise.resolve(ok({ exactDuplicates: [], possibleUpdates: [] })); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
+  public deleteDocument(): Promise<RepositoryResult<{ readonly status: "not-found" }>> { return Promise.resolve(ok({ status: "not-found" })); }
   public getCurrentDocument(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string; readonly title: string; readonly chunkCount: number; readonly pipelineVersion: number; readonly outline: readonly []; readonly layouts: ReturnType<typeof createSingleSectionLayouts> }>> { return Promise.resolve(ok({ chunkCount: 100, documentId: "document-id", layouts: createSingleSectionLayouts(100), outline: [], pipelineVersion: PIPELINE_VERSION, title: "Reader document", versionId: "version-id" })); }
   public getCurrentSourceForRebuild(): Promise<RepositoryResult<never>> { return Promise.resolve({ ok: false, error: { code: "DOCUMENT_NOT_FOUND" } }); }
   public getCurrentChunkWindow(input: { readonly documentId: string; readonly startOrdinal: number; readonly endOrdinalInclusive: number; readonly pipelineVersion: number }): Promise<RepositoryResult<readonly []>> { this.windowRequest = input; return Promise.resolve(ok([])); }

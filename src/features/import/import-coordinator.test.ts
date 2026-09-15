@@ -193,6 +193,7 @@ class MemoryRepository implements DocumentRepository {
   public findImportIdentityMatches(): Promise<RepositoryResult<ImportIdentityMatches>> { return Promise.resolve(ok(this.matches)); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
+  public deleteDocument(): Promise<RepositoryResult<{ readonly status: "not-found" }>> { return Promise.resolve(ok({ status: "not-found" })); }
   public getCurrentDocument(): Promise<RepositoryResult<never>> { return Promise.resolve(fail("DOCUMENT_NOT_FOUND")); }
   public getCurrentSourceForRebuild(): Promise<RepositoryResult<RebuildSourceSnapshot>> { return Promise.resolve(this.rebuildSource === undefined ? fail("DOCUMENT_NOT_FOUND") : ok(this.rebuildSource)); }
   public getCurrentChunkWindow(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }

@@ -52,6 +52,7 @@ class CacheRepository implements DocumentRepository {
   public findImportIdentityMatches(): Promise<RepositoryResult<ImportIdentityMatches>> { return Promise.resolve(ok({ exactDuplicates: [], possibleUpdates: [] })); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
+  public deleteDocument(): Promise<RepositoryResult<{ readonly status: "not-found" }>> { return Promise.resolve(ok({ status: "not-found" })); }
   public getCurrentDocument(): Promise<RepositoryResult<CurrentDocumentSnapshot>> { return Promise.resolve({ ok: false, error: { code: "DOCUMENT_NOT_FOUND" } }); }
   public getCurrentSourceForRebuild(): Promise<RepositoryResult<RebuildSourceSnapshot>> { return Promise.resolve({ ok: false, error: { code: "DOCUMENT_NOT_FOUND" } }); }
   public getCurrentChunkWindow(input: { readonly startOrdinal: number; readonly endOrdinalInclusive: number }): Promise<RepositoryResult<readonly ReaderChunk[]>> {

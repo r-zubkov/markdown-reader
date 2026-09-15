@@ -1,6 +1,7 @@
 import type {
   AppPreferencesSnapshot,
   CurrentDocumentSnapshot,
+  DeleteDocumentResult,
   DocumentRepository,
   DocumentSummary,
   ImportIdentityMatches,
@@ -19,6 +20,7 @@ import type { BlockAnchor, OutlineItem, SectionLayout, SplitStrategy } from "@/d
 import { mapSemanticAnchor } from "@/domain/reading/progress-mapping";
 import {
   StorageAtomicitySpikeRepository,
+  type StorageAtomicityFailureHooks,
   type StorageSpikeResult,
 } from "@/infrastructure/db/storage-atomicity-spike";
 
@@ -30,8 +32,8 @@ export const MARKDOWN_READER_DATABASE_NAME = "markdown-reader";
 export class DexieDocumentRepository implements DocumentRepository {
   private readonly storage: StorageAtomicitySpikeRepository;
 
-  public constructor(databaseName = MARKDOWN_READER_DATABASE_NAME) {
-    this.storage = new StorageAtomicitySpikeRepository(databaseName);
+  public constructor(databaseName = MARKDOWN_READER_DATABASE_NAME, failureHooks?: StorageAtomicityFailureHooks) {
+    this.storage = new StorageAtomicitySpikeRepository(databaseName, failureHooks);
   }
 
   public close(): void { this.storage.close(); }
@@ -86,6 +88,13 @@ export class DexieDocumentRepository implements DocumentRepository {
       const summaries = result.value.filter(isDocumentSummary);
       listener(summaries.length === result.value.length ? success(summaries) : failure("INVALID_PERSISTED_RECORD"));
     });
+  }
+
+  public async deleteDocument(documentId: string): Promise<RepositoryResult<DeleteDocumentResult>> {
+    if (!nonEmpty(documentId)) return failure("INVALID_PERSISTED_RECORD");
+    const result = await this.storage.deleteDocument(documentId);
+    if (!result.ok) return failure(result.error.code);
+    return success({ status: result.value.deleted ? "deleted" : "not-found" });
   }
 
   public async getCurrentDocument(documentId: string): Promise<RepositoryResult<CurrentDocumentSnapshot>> {

@@ -6,7 +6,7 @@ test.describe("P02-T03 duplicate and update decisions", () => {
     await page.goto("/");
     await importMarkdown(page, "original.md", "# Original\n\nLocal document.");
     await page.getByRole("button", { name: "Готово" }).click();
-    const original = page.getByRole("link", { name: /Original/ });
+    const original = page.locator(".library-list__link").filter({ hasText: "Original" });
     const originalHref = await original.getAttribute("href");
 
     await page.getByTestId("library-import-trigger").click();

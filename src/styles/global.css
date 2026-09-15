@@ -171,6 +171,19 @@ a { color: var(--accent); }
 .library-item__title { overflow-wrap: anywhere; font-weight: 700; }
 .library-item__metadata, .library-item__progress { color: var(--text-muted); font-size: .875rem; }
 .library-item__progress { display: grid; gap: 4px; margin-block-start: 4px; }
+.library-item { display: grid; gap: 8px; min-width: 0; padding: 8px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+.library-item .library-list__link { min-height: 0; padding: 4px; border: 0; background: transparent; }
+.library-item__title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.library-item__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.library-item__continue { display: inline-flex; min-height: 44px; align-items: center; padding-inline: 12px; border-radius: 8px; color: var(--accent); font-size: .875rem; font-weight: 700; text-decoration: none; }
+.library-item__continue:hover { background: var(--surface-raised); }
+.library-actions__popover { min-width: 220px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 8px 24px rgb(0 0 0 / .12); }
+.library-actions__menu { display: grid; gap: 2px; margin: 0; padding: 0; outline: none; }
+.library-actions__item { min-height: 44px; padding: 10px 12px; border-radius: 6px; color: var(--danger); cursor: pointer; outline: none; }
+.library-actions__item[data-focused], .library-actions__item[data-hovered] { background: var(--surface-raised); }
+.delete-document-dialog { width: min(100% - 24px, 480px); }
+.delete-document-dialog__status { margin: 0; color: var(--text-muted); }
+.delete-document-dialog__error { margin: 0; color: var(--danger); line-height: 1.5; }
 .import-overlay { width: min(100% - 24px, 560px); max-height: min(720px, calc(100dvh - 24px)); }
 .import-overlay__body { display: grid; gap: 16px; min-height: 120px; overflow-y: auto; padding-block-end: 8px; }
 .import-overlay__body .mobile-platform-spike__drop-zone { min-height: 176px; }

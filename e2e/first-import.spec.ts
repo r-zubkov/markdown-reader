@@ -10,10 +10,10 @@ test.describe("P01-T03 first import vertical slice", () => {
       buffer: Buffer.from("# Walking document\n\nA safe paragraph."),
     });
     await expect(page.locator(".import-overlay__notice")).toContainText("Документ готов.");
-    await expect(page.getByRole("link", { name: /Walking document/ })).toHaveAttribute("href", /\/documents\//);
+    await expect(page.locator(".library-list__link")).toHaveAttribute("href", /\/documents\//);
 
     await page.reload();
-    await expect(page.getByRole("link", { name: /Walking document/ })).toBeVisible();
+    await expect(page.locator(".library-list__link")).toBeVisible();
   });
 
   test("rejects invalid UTF-8 without publishing a Library document", async ({ page }) => {
