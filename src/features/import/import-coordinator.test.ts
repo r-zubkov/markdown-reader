@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { DocumentRepository, ImportIdentityMatches, RebuildSourceSnapshot, RepositoryResult, StageDocumentVersionInput } from "@/application/ports/document-repository";
+import type { CommitVersionResult, DocumentRepository, ImportIdentityMatches, ReaderStateSnapshot, RebuildSourceSnapshot, RepositoryResult, StageDocumentVersionInput } from "@/application/ports/document-repository";
 import { runMarkdownPipeline } from "@/domain/content/markdown-pipeline";
 import { PIPELINE_LIMITS, PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import { ImportCoordinator, type ImportWorkerPort, type ImportUiState } from "./import-coordinator";
+import { createSingleSectionLayouts } from "@/infrastructure/db/storage-atomicity-spike";
 import { WORKER_PROTOCOL_VERSION } from "@/workers/import-protocol";
 
 describe("ImportCoordinator", () => {
@@ -145,8 +146,9 @@ describe("ImportCoordinator", () => {
     expect(states.at(-1)).toEqual({ status: "succeeded", documentId: "document-id" });
   });
 
-  it("records an explicit replace handoff without staging or changing the target", async () => {
+  it("captures the selected target and completes mapped replacement", async () => {
     const repository = new MemoryRepository();
+    repository.replacementCleanup = "pending";
     repository.matches = { exactDuplicates: [], possibleUpdates: [candidate("existing-1")] };
     const worker = new FakeWorker();
     const states: ImportUiState[] = [];
@@ -156,11 +158,18 @@ describe("ImportCoordinator", () => {
     coordinator.start(file);
     worker.emit({ type: "import.metadata", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: worker.jobId(), metadata: pipeline.metadata });
     await settle();
-    coordinator.handoffReplace("existing-1");
+    await coordinator.continueReplacing("existing-1");
+    for (const batch of pipeline.batches) worker.emit({ type: "import.chunkBatch", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: worker.jobId(), batchOrdinal: batch.batchOrdinal, chunks: batch.chunks, htmlBytes: batch.htmlBytes });
+    worker.emit({ type: "import.complete", protocolVersion: WORKER_PROTOCOL_VERSION, jobId: worker.jobId(), result: { pipelineVersion: PIPELINE_VERSION, contentHash: pipeline.metadata.contentHash, chunkCount: pipeline.metadata.chunkCount, batchCount: pipeline.batches.length } });
+    await settle();
 
-    expect(repository.stage).toHaveLength(0);
-    expect(repository.commitCalls).toBe(0);
-    expect(states.at(-1)).toEqual({ status: "replace-handoff", candidate: candidate("existing-1") });
+    expect(repository.stage[0]).toMatchObject({ documentId: "existing-1", expectedCurrentVersionId: "existing-1-version" });
+    expect(repository.commitCalls).toBe(1);
+    expect(repository.committedReplacementState).toMatchObject({ documentId: "existing-1", splitStrategy: "h2" });
+    expect(states.at(-1)).toMatchObject({ status: "succeeded", documentId: "existing-1", replacement: { cleanup: "pending", confidence: "exact" } });
+    await coordinator.retryReplacementCleanup();
+    expect(repository.cleanupRetryCalls).toBe(1);
+    expect(states.at(-1)).toMatchObject({ status: "succeeded", replacement: { cleanup: "complete" } });
   });
 });
 
@@ -183,24 +192,30 @@ class MemoryRepository implements DocumentRepository {
   public readonly abortCalls: string[] = [];
   public readonly stage: StageDocumentVersionInput[] = [];
   public commitCalls = 0;
+  public cleanupRetryCalls = 0;
+  public committedReplacementState: ReaderStateSnapshot | undefined;
+  public replacementCleanup: "complete" | "pending" = "complete";
   public matches: ImportIdentityMatches = { exactDuplicates: [], possibleUpdates: [] };
   public constructor(private readonly rebuildSource?: RebuildSourceSnapshot) {}
   public stageVersion(input: StageDocumentVersionInput): Promise<RepositoryResult<void>> { this.stage.push(input); return Promise.resolve(ok(undefined)); }
   public appendChunkBatch(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
-  public commitVersion(input: { readonly versionId: string; readonly jobId: string; readonly readyAt: number }): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string }>> { this.commitCalls += 1; const staged = this.stage[0]; if (staged?.versionId !== input.versionId || staged.jobId !== input.jobId) return Promise.resolve(fail("UNKNOWN_STORAGE_ERROR")); return Promise.resolve(ok({ documentId: staged.documentId, versionId: input.versionId })); }
+  public commitVersion(input: { readonly versionId: string; readonly jobId: string; readonly readyAt: number; readonly replacementReaderState?: ReaderStateSnapshot }): Promise<RepositoryResult<CommitVersionResult>> { this.commitCalls += 1; const staged = this.stage.at(-1); if (staged?.versionId !== input.versionId || staged.jobId !== input.jobId) return Promise.resolve(fail("UNKNOWN_STORAGE_ERROR")); this.committedReplacementState = input.replacementReaderState; return Promise.resolve(ok({ documentId: staged.documentId, versionId: input.versionId, ...(input.replacementReaderState === undefined ? {} : { replacement: { cleanup: this.replacementCleanup, confidence: "exact", reason: "CROSS_VERSION_CONTENT_FINGERPRINT", replacedVersionId: staged.expectedCurrentVersionId ?? "old-version", structuralSimilarity: 1 } }) })); }
   public abortVersion(jobId: string): Promise<RepositoryResult<void>> { this.abortCalls.push(jobId); return Promise.resolve(ok(undefined)); }
   public cleanupAbandonedStaging(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public cleanupObsoleteReadyVersions(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public findImportIdentityMatches(): Promise<RepositoryResult<ImportIdentityMatches>> { return Promise.resolve(ok(this.matches)); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
   public deleteDocument(): Promise<RepositoryResult<{ readonly status: "not-found" }>> { return Promise.resolve(ok({ status: "not-found" })); }
-  public getCurrentDocument(): Promise<RepositoryResult<never>> { return Promise.resolve(fail("DOCUMENT_NOT_FOUND")); }
+  public getCurrentDocument(documentId: string): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string; readonly title: string; readonly chunkCount: number; readonly pipelineVersion: number; readonly outline: readonly []; readonly layouts: ReturnType<typeof createSingleSectionLayouts> }>> { return Promise.resolve(ok({ chunkCount: 1, documentId, layouts: createSingleSectionLayouts(1), outline: [], pipelineVersion: PIPELINE_VERSION, title: "Existing", versionId: `${documentId}-version` })); }
   public getCurrentSourceForRebuild(): Promise<RepositoryResult<RebuildSourceSnapshot>> { return Promise.resolve(this.rebuildSource === undefined ? fail("DOCUMENT_NOT_FOUND") : ok(this.rebuildSource)); }
   public getCurrentChunkWindow(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public resolveCurrentAnchor(): Promise<RepositoryResult<{ readonly chunkOrdinal: 0; readonly confidence: "none"; readonly reason: "NO_RELIABLE_MATCH" }>> { return Promise.resolve(ok({ chunkOrdinal: 0, confidence: "none", reason: "NO_RELIABLE_MATCH" })); }
-  public getReaderState(): Promise<RepositoryResult<undefined>> { return Promise.resolve(ok(undefined)); }
+  public getReaderState(documentId: string): Promise<RepositoryResult<ReaderStateSnapshot>> { return Promise.resolve(ok({ documentId, modeOrigin: "user", progressRatio: 0.5, readingMode: "sections", splitStrategy: "h2", updatedAt: 1 })); }
   public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public saveReaderPresentation(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public retryReplacementCleanup(): Promise<RepositoryResult<void>> { this.cleanupRetryCalls += 1; return Promise.resolve(ok(undefined)); }
+  public dismissReaderRestoreNotice(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public getPreferences(): Promise<RepositoryResult<{ readonly theme: "system"; readonly remoteImagesEnabled: true; readonly desktopTocCollapsed: false; readonly updatedAt: 0 }>> { return Promise.resolve(ok({ theme: "system", remoteImagesEnabled: true, desktopTocCollapsed: false, updatedAt: 0 })); }
   public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
 }

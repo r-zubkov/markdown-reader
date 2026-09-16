@@ -16,10 +16,9 @@ export type ImportControllerEvent =
   | { readonly type: "finalizing" }
   | { readonly type: "cancel-requested" }
   | { readonly type: "cancelled" }
-  | { readonly type: "succeeded"; readonly documentId: string }
+  | { readonly type: "succeeded"; readonly documentId: string; readonly replacement?: Extract<ImportUiState, { readonly status: "succeeded" }>["replacement"] }
   | { readonly type: "failed"; readonly error: ImportErrorCode; readonly retry: RetryKind }
   | { readonly type: "decision"; readonly context: ImportDecisionContext }
-  | { readonly type: "replace-handoff"; readonly candidate: Extract<ImportDecisionContext, { readonly kind: "possible-update" }>["candidates"][number] }
   | { readonly type: "retry" };
 
 /** The overlay ignores impossible and late transitions rather than guessing. */
@@ -41,19 +40,18 @@ export function importControllerReducer(
     case "finalizing": return state.status === "validating" || state.status === "running" || state.status === "decision" ? { status: "finalizing" } : state;
     case "cancel-requested": return state.status === "validating" || state.status === "running" ? { status: "cancelling" } : state;
     case "cancelled": return state.status === "cancelling" || state.status === "decision" ? { status: "cancelled" } : state;
-    case "succeeded": return state.status === "finalizing" || state.status === "decision" ? { status: "succeeded", documentId: event.documentId } : state;
+    case "succeeded": return state.status === "finalizing" || state.status === "decision" || state.status === "succeeded" && state.documentId === event.documentId ? { status: "succeeded", documentId: event.documentId, ...(event.replacement === undefined ? {} : { replacement: event.replacement }) } : state;
     case "failed":
       return state.status === "validating" || state.status === "running" || state.status === "finalizing" || state.status === "cancelling" || state.status === "decision"
         ? { status: "failed", error: event.error, retry: event.retry }
         : state;
     case "decision": return state.status === "validating" || state.status === "running" || state.status === "finalizing" ? { status: "decision", context: event.context } : state;
-    case "replace-handoff": return state.status === "decision" ? { status: "replace-handoff", candidate: event.candidate } : state;
     case "retry": return state.status === "failed" || state.status === "cancelled" ? { status: "idle" } : state;
   }
 }
 
 function canClose(state: ImportControllerVisibleState): boolean {
-  return state.status === "idle" || state.status === "failed" || state.status === "cancelled" || state.status === "succeeded" || state.status === "decision" || state.status === "replace-handoff";
+  return state.status === "idle" || state.status === "failed" || state.status === "cancelled" || state.status === "succeeded" || state.status === "decision";
 }
 
 function canStart(state: ImportControllerVisibleState): boolean {

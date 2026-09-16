@@ -1,6 +1,7 @@
 export const libraryCopy = {
   continue: "Продолжить чтение",
   actions: "Действия с документом",
+  replaceDocument: "Заменить файлом",
   deleteDocument: {
     title: (title: string) => `Удалить «${title}»?`,
     description: "Документ, настройки и прогресс чтения в этом браузере будут удалены. Отменить это действие нельзя.",

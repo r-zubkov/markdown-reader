@@ -4,7 +4,12 @@ import {
   DexieDocumentRepository,
   PIPELINE_VERSION,
 } from "@/infrastructure/db/document-repository";
-import { createStorageAtomicitySpikeDatabase, deleteStorageAtomicitySpikeDatabase, type StorageAtomicityFailureHooks } from "@/infrastructure/db/storage-atomicity-spike";
+import { PIPELINE_LIMITS } from "@/domain/content/pipeline-limits";
+import { runMarkdownPipeline } from "@/domain/content/markdown-pipeline";
+import type { PipelineSuccess } from "@/domain/content/pipeline-types";
+import { normalizeIdentityFileName, normalizeIdentityText } from "@/domain/documents/import-identity";
+import { createStorageAtomicitySpikeDatabase, deleteStorageAtomicitySpikeDatabase, StorageAtomicitySpikeRepository, type StorageAtomicityFailureHooks } from "@/infrastructure/db/storage-atomicity-spike";
+import { createProgressMappingPairs } from "@/test/corpus/progress-mapping-corpus";
 import { createStorageChunks, createStorageStageInput } from "@/test/fixtures/storage-atomicity-fixtures";
 
 const databaseNames: string[] = [];
@@ -200,7 +205,225 @@ describe("DexieDocumentRepository", () => {
     expect(await idempotentRepository.deleteDocument("removed")).toEqual({ ok: true, value: { status: "not-found" } });
     idempotentRepository.close();
   });
+
+  for (const pair of createProgressMappingPairs()) {
+    it(`atomically maps the production update pair: ${pair.id}`, async () => {
+      const databaseName = `markdown-reader-repository-mapping-${pair.id}-${crypto.randomUUID()}`;
+      databaseNames.push(databaseName);
+      const repository = new DexieDocumentRepository(databaseName);
+      const source = await pipeline(pair.sourceMarkdown, `${pair.id}.md`);
+      const target = await pipeline(pair.targetMarkdown, `${pair.id}.md`);
+      const sourceIds = { documentId: `document-${pair.id}`, jobId: `source-job-${pair.id}`, versionId: `source-version-${pair.id}` };
+      await stagePipeline(repository, source, pair.sourceMarkdown, sourceIds);
+      expect(await repository.commitVersion({ jobId: sourceIds.jobId, readyAt: 2_000, versionId: sourceIds.versionId })).toMatchObject({ ok: true });
+      const sourceOffset = pair.sourceMarkdown.indexOf(pair.sourceMarker);
+      const sourceBlock = source.chunks.flatMap((chunk) => chunk.blockAnchors).find((block) => block.sourceStart <= sourceOffset && sourceOffset <= block.sourceEnd);
+      if (sourceBlock === undefined) throw new Error(`Missing source marker block for ${pair.id}.`);
+      const sourceAnchor = {
+        blockId: sourceBlock.blockId,
+        blockOrdinalWithinHeading: sourceBlock.blockOrdinalWithinHeading,
+        headingPathKey: sourceBlock.headingPathKey,
+        intraBlockRatio: 0,
+        overallSourceRatio: sourceOffset / pair.sourceMarkdown.length,
+        versionId: sourceIds.versionId,
+      };
+      await repository.saveReaderAnchor({ anchor: sourceAnchor, documentId: sourceIds.documentId, progressRatio: sourceAnchor.overallSourceRatio, updatedAt: 2_001 });
+      await repository.saveReaderPresentation({ documentId: sourceIds.documentId, modeOrigin: "user", readingMode: "sections", splitStrategy: "h2", updatedAt: 2_002 });
+      const captured = await repository.getReaderState(sourceIds.documentId);
+      if (!captured.ok || captured.value === undefined) throw new Error("Expected captured ReaderState.");
+
+      const targetIds = { documentId: sourceIds.documentId, jobId: `target-job-${pair.id}`, versionId: `target-version-${pair.id}` };
+      await stagePipeline(repository, target, pair.targetMarkdown, targetIds, sourceIds.versionId);
+      const committed = await repository.commitVersion({
+        jobId: targetIds.jobId,
+        readyAt: 3_000,
+        replacementReaderState: captured.value,
+        versionId: targetIds.versionId,
+      });
+      expect(committed).toMatchObject({
+        ok: true,
+        value: {
+          documentId: sourceIds.documentId,
+          replacement: {
+            cleanup: "complete",
+            confidence: pair.expectedConfidence,
+            reason: pair.expectedReason,
+            replacedVersionId: sourceIds.versionId,
+          },
+          versionId: targetIds.versionId,
+        },
+      });
+      const state = await repository.getReaderState(sourceIds.documentId);
+      expect(state).toMatchObject({ ok: true, value: {
+        anchor: { versionId: targetIds.versionId },
+        documentId: sourceIds.documentId,
+        modeOrigin: "user",
+        readingMode: "sections",
+        splitStrategy: "h2",
+      } });
+      if (!state.ok || state.value === undefined) throw new Error("Expected mapped ReaderState.");
+      expect(target.chunks.flatMap((chunk) => chunk.blockAnchors).some((block) => block.blockId === state.value?.anchor?.blockId)).toBe(true);
+      expect(state.value.pendingRestoreNotice?.confidence).toBe(pair.expectedConfidence === "exact" ? undefined : pair.expectedConfidence);
+      if (pair.expectedConfidence !== "exact") {
+        expect(await repository.dismissReaderRestoreNotice({ documentId: sourceIds.documentId, versionId: targetIds.versionId })).toEqual({ ok: true, value: undefined });
+        expect(await repository.dismissReaderRestoreNotice({ documentId: sourceIds.documentId, versionId: targetIds.versionId })).toEqual({ ok: true, value: undefined });
+        const cleared = await repository.getReaderState(sourceIds.documentId);
+        expect(cleared.ok && cleared.value?.pendingRestoreNotice).toBeUndefined();
+      }
+      const database = createStorageAtomicitySpikeDatabase(databaseName);
+      await database.open();
+      try {
+        expect(await database.table("documentVersions").get(sourceIds.versionId)).toBeUndefined();
+        expect(await database.table("documentVersions").get(targetIds.versionId)).toMatchObject({ state: "ready" });
+      } finally {
+        database.close();
+      }
+      repository.close();
+    });
+  }
+
+  it("keeps a successful pointer switch when cleanup fails and retries cleanup idempotently", async () => {
+    let cleanupFailures = 1;
+    const databaseName = `markdown-reader-repository-cleanup-retry-${crypto.randomUUID()}`;
+    databaseNames.push(databaseName);
+    const repository = new DexieDocumentRepository(databaseName, {
+      beforeCleanupDelete: () => {
+        if (cleanupFailures > 0) {
+          cleanupFailures -= 1;
+          throw new Error("forced cleanup failure");
+        }
+      },
+    });
+    const source = await pipeline("# Guide\n\nStable location.\n", "guide.md");
+    const target = await pipeline("# Guide\n\nInserted.\n\nStable location.\n", "guide.md");
+    const sourceIds = { documentId: "cleanup-document", jobId: "cleanup-source-job", versionId: "cleanup-source-version" };
+    await stagePipeline(repository, source, "# Guide\n\nStable location.\n", sourceIds);
+    await repository.commitVersion({ jobId: sourceIds.jobId, readyAt: 10, versionId: sourceIds.versionId });
+    const captured = await repository.getReaderState(sourceIds.documentId);
+    if (!captured.ok || captured.value === undefined) throw new Error("Expected ReaderState.");
+    const targetIds = { documentId: sourceIds.documentId, jobId: "cleanup-target-job", versionId: "cleanup-target-version" };
+    await stagePipeline(repository, target, "# Guide\n\nInserted.\n\nStable location.\n", targetIds, sourceIds.versionId);
+    const committed = await repository.commitVersion({ jobId: targetIds.jobId, readyAt: 20, replacementReaderState: captured.value, versionId: targetIds.versionId });
+    expect(committed).toMatchObject({ ok: true, value: { replacement: { cleanup: "pending" }, versionId: targetIds.versionId } });
+    expect(await repository.getCurrentDocument(sourceIds.documentId)).toMatchObject({ ok: true, value: { versionId: targetIds.versionId } });
+    await expect(repository.retryReplacementCleanup(sourceIds.versionId)).resolves.toEqual({ ok: true, value: undefined });
+    await expect(repository.retryReplacementCleanup(sourceIds.versionId)).resolves.toEqual({ ok: true, value: undefined });
+    repository.close();
+  });
+
+  it("preserves the old current version and ReaderState when mapped commit fails before the switch", async () => {
+    const targetVersionId = "atomic-target-version";
+    const repository = createRepository("mapped-atomic-failure", {
+      beforeCommitPointerSwitch: ({ versionId }) => {
+        if (versionId === targetVersionId) throw new Error("forced commit failure");
+      },
+    });
+    const sourceMarkdown = "# Atomic\n\nKeep this position.\n";
+    const targetMarkdown = "# Atomic\n\nChanged position.\n";
+    const source = await pipeline(sourceMarkdown, "atomic.md");
+    const target = await pipeline(targetMarkdown, "atomic.md");
+    const sourceIds = { documentId: "atomic-document", jobId: "atomic-source-job", versionId: "atomic-source-version" };
+    await stagePipeline(repository, source, sourceMarkdown, sourceIds);
+    await repository.commitVersion({ jobId: sourceIds.jobId, readyAt: 10, versionId: sourceIds.versionId });
+    const block = source.chunks.flatMap((chunk) => chunk.blockAnchors)[1];
+    if (block === undefined) throw new Error("Expected source block.");
+    await repository.saveReaderAnchor({
+      anchor: { ...block, intraBlockRatio: 0.5, overallSourceRatio: 0.5, versionId: sourceIds.versionId },
+      documentId: sourceIds.documentId,
+      progressRatio: 0.5,
+      updatedAt: 11,
+    });
+    const captured = await repository.getReaderState(sourceIds.documentId);
+    if (!captured.ok || captured.value === undefined) throw new Error("Expected ReaderState.");
+    const targetIds = { documentId: sourceIds.documentId, jobId: "atomic-target-job", versionId: targetVersionId };
+    await stagePipeline(repository, target, targetMarkdown, targetIds, sourceIds.versionId);
+
+    expect(await repository.commitVersion({ jobId: targetIds.jobId, readyAt: 20, replacementReaderState: captured.value, versionId: targetIds.versionId })).toMatchObject({ ok: false });
+    expect(await repository.getCurrentDocument(sourceIds.documentId)).toMatchObject({ ok: true, value: { versionId: sourceIds.versionId } });
+    expect(await repository.getReaderState(sourceIds.documentId)).toEqual(captured);
+    repository.close();
+  });
+
+  it("rejects a stale mapped replacement after another version wins", async () => {
+    const repository = createRepository("mapped-conflict");
+    const sourceMarkdown = "# Conflict\n\nOriginal.\n";
+    const source = await pipeline(sourceMarkdown, "conflict.md");
+    const stale = await pipeline("# Conflict\n\nStale replacement.\n", "conflict.md");
+    const winner = await pipeline("# Conflict\n\nWinning replacement.\n", "conflict.md");
+    const sourceIds = { documentId: "conflict-document", jobId: "conflict-source-job", versionId: "conflict-source-version" };
+    await stagePipeline(repository, source, sourceMarkdown, sourceIds);
+    await repository.commitVersion({ jobId: sourceIds.jobId, readyAt: 10, versionId: sourceIds.versionId });
+    const captured = await repository.getReaderState(sourceIds.documentId);
+    if (!captured.ok || captured.value === undefined) throw new Error("Expected ReaderState.");
+    const staleIds = { documentId: sourceIds.documentId, jobId: "conflict-stale-job", versionId: "conflict-stale-version" };
+    const winnerIds = { documentId: sourceIds.documentId, jobId: "conflict-winner-job", versionId: "conflict-winner-version" };
+    await stagePipeline(repository, stale, "# Conflict\n\nStale replacement.\n", staleIds, sourceIds.versionId);
+    await stagePipeline(repository, winner, "# Conflict\n\nWinning replacement.\n", winnerIds, sourceIds.versionId);
+    expect(await repository.commitVersion({ jobId: winnerIds.jobId, readyAt: 20, replacementReaderState: captured.value, versionId: winnerIds.versionId })).toMatchObject({ ok: true });
+    expect(await repository.commitVersion({ jobId: staleIds.jobId, readyAt: 21, replacementReaderState: captured.value, versionId: staleIds.versionId })).toEqual({ ok: false, error: { code: "COMMIT_CONFLICT" } });
+    expect(await repository.getCurrentDocument(sourceIds.documentId)).toMatchObject({ ok: true, value: { versionId: winnerIds.versionId } });
+    repository.close();
+  });
+
+  it("requires a fingerprint-capable source pipeline before cross-version mapping", async () => {
+    const databaseName = `markdown-reader-repository-old-pipeline-${crypto.randomUUID()}`;
+    databaseNames.push(databaseName);
+    const storage = new StorageAtomicitySpikeRepository(databaseName);
+    const repository = new DexieDocumentRepository(databaseName);
+    const source = createStorageStageInput({ documentId: "old-pipeline-document", jobId: "old-pipeline-job", versionId: "old-pipeline-version" });
+    const oldPipelineVersion = 2;
+    await storage.stageVersion({ ...source, pipelineVersion: oldPipelineVersion });
+    await storage.appendChunkBatch({ batchOrdinal: 0, chunks: createStorageChunks(source.chunkCount, { pipelineVersion: oldPipelineVersion }), jobId: source.jobId, versionId: source.versionId });
+    await storage.commitVersion({ jobId: source.jobId, readyAt: 10, versionId: source.versionId });
+    const captured = await repository.getReaderState(source.documentId);
+    if (!captured.ok || captured.value === undefined) throw new Error("Expected legacy ReaderState.");
+    const targetMarkdown = "# Current pipeline\n\nReplacement.\n";
+    const target = await pipeline(targetMarkdown, "old-pipeline.md");
+    const targetIds = { documentId: source.documentId, jobId: "current-pipeline-job", versionId: "current-pipeline-version" };
+    await stagePipeline(repository, target, targetMarkdown, targetIds, source.versionId);
+    expect(await repository.commitVersion({ jobId: targetIds.jobId, readyAt: 20, replacementReaderState: captured.value, versionId: targetIds.versionId })).toEqual({ ok: false, error: { code: "STALE_DERIVED" } });
+    expect(await storage.listVisibleDocuments()).toMatchObject({ ok: true, value: [{ currentVersionId: source.versionId }] });
+    storage.close();
+    repository.close();
+  });
 });
+
+async function pipeline(markdown: string, fileName: string): Promise<PipelineSuccess> {
+  const result = await runMarkdownPipeline(new TextEncoder().encode(markdown), fileName, PIPELINE_LIMITS);
+  if (!result.ok) throw new Error(`Pipeline failed: ${result.error.code}`);
+  return result.value;
+}
+
+async function stagePipeline(
+  repository: DexieDocumentRepository,
+  pipelineResult: PipelineSuccess,
+  markdown: string,
+  ids: { readonly documentId: string; readonly jobId: string; readonly versionId: string },
+  expectedCurrentVersionId?: string,
+): Promise<void> {
+  const fileName = `${ids.documentId}.md`;
+  const staged = await repository.stageVersion({
+    ...ids,
+    byteLength: pipelineResult.metadata.byteLength,
+    charLength: pipelineResult.metadata.charLength,
+    chunkCount: pipelineResult.metadata.chunkCount,
+    contentHash: pipelineResult.metadata.contentHash,
+    fileName,
+    importedAt: 1_000,
+    layouts: pipelineResult.metadata.layouts,
+    normalizedFileName: normalizeIdentityFileName(fileName),
+    normalizedTitle: normalizeIdentityText(pipelineResult.metadata.title),
+    outline: pipelineResult.metadata.outline,
+    pipelineVersion: pipelineResult.metadata.pipelineVersion,
+    sourceBlob: new Blob([markdown], { type: "text/markdown" }),
+    title: pipelineResult.metadata.title,
+    ...(expectedCurrentVersionId === undefined ? {} : { expectedCurrentVersionId }),
+  });
+  expect(staged).toEqual({ ok: true, value: undefined });
+  for (const batch of pipelineResult.batches) {
+    expect(await repository.appendChunkBatch({ ...ids, batchOrdinal: batch.batchOrdinal, chunks: batch.chunks })).toEqual({ ok: true, value: undefined });
+  }
+}
 
 async function commitFixture(repository: DexieDocumentRepository, options: {
   readonly contentHash: string;

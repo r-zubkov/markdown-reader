@@ -4,6 +4,7 @@ import {
   createStorageAtomicitySpikeDatabase,
   deleteStorageAtomicitySpikeDatabase,
   seedStorageAtomicityLegacyV1Database,
+  seedStorageAtomicityLegacyV3ReaderState,
   StorageAtomicitySpikeRepository,
   STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION,
   type CommitStorageVersionResult,
@@ -263,12 +264,12 @@ describe("Storage atomicity spike repository", () => {
     const replaceCommit = await stageAppendCommit(repository, replacementInput);
     expect(replaceCommit.replacedVersionId).toBe(readyInput.versionId);
 
-    expectError(await repository.cleanupReadyVersion(readyInput.versionId), "CLEANUP_FAILED");
+    expectError(await repository.cleanupObsoleteReadyVersions(), "CLEANUP_FAILED");
     expect(expectOk(await repository.getVersion(readyInput.versionId))?.state).toBe("ready");
 
     failCleanup = false;
 
-    const cleanupResult = expectOk(await repository.cleanupReadyVersion(readyInput.versionId));
+    const cleanupResult = expectOk(await repository.cleanupObsoleteReadyVersions());
     expect(cleanupResult).toEqual({
       removedChunkCount: readyInput.chunkCount,
       removedVersionIds: [readyInput.versionId],
@@ -390,6 +391,31 @@ describe("Storage atomicity spike repository", () => {
     } finally {
       upgradedDatabase.close();
     }
+  });
+
+  it("upgrades v3 reader state without retaining an invalid replacement notice", async () => {
+    const databaseName = registerDatabaseName("reader-notice-migration");
+    await seedStorageAtomicityLegacyV3ReaderState({
+      databaseName,
+      readerState: {
+        documentId: "legacy-reader",
+        modeOrigin: "user",
+        pendingRestoreNotice: { confidence: "exact", reason: "made-up", versionId: "legacy-version" },
+        progressRatio: 0.4,
+        readingMode: "sections",
+        splitStrategy: "h2",
+        updatedAt: 500,
+      },
+    });
+    const repository = registerRepository(new StorageAtomicitySpikeRepository(databaseName));
+    expect(expectOk(await repository.getReaderState("legacy-reader"))).toEqual({
+      documentId: "legacy-reader",
+      modeOrigin: "user",
+      progressRatio: 0.4,
+      readingMode: "sections",
+      splitStrategy: "h2",
+      updatedAt: 500,
+    });
   });
 
 });

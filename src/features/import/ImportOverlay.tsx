@@ -5,7 +5,7 @@ import { importControllerReducer, type ImportControllerEvent, type ImportControl
 import { importCopy } from "./copy";
 import type { ImportErrorCode, ImportHandle, ImportUiState, ImportWorkerFactory } from "./import-coordinator";
 import { ImportCoordinator } from "./import-coordinator";
-import type { DocumentRepository } from "@/application/ports/document-repository";
+import type { DocumentRepository, ImportIdentityMatch } from "@/application/ports/document-repository";
 import { Button } from "@/ui/primitives/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/primitives/dialog";
 import { FileDropField } from "@/ui/primitives/file-drop-field";
@@ -15,12 +15,13 @@ interface ImportOverlayProps {
   readonly isOpen: boolean;
   readonly onOpenChange: (isOpen: boolean) => void;
   readonly repository: DocumentRepository;
+  readonly replacementTarget?: ImportIdentityMatch;
   readonly workerFactory: ImportWorkerFactory;
 }
 
 const initialState: ImportControllerVisibleState = { status: "idle" };
 
-export function ImportOverlay({ isOpen, onOpenChange, repository, workerFactory }: ImportOverlayProps) {
+export function ImportOverlay({ isOpen, onOpenChange, repository, replacementTarget, workerFactory }: ImportOverlayProps) {
   const [state, dispatch] = useReducer(importControllerReducer, initialState);
   const [dismissNotice, setDismissNotice] = useState(false);
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | undefined>(undefined);
@@ -62,7 +63,9 @@ export function ImportOverlay({ isOpen, onOpenChange, repository, workerFactory 
     activeFileRef.current = file;
     setSelectedFileName(file.name);
     dispatch({ type: "file-selected", file: { name: file.name, size: file.size } });
-    handleRef.current = coordinatorRef.current?.start(file);
+    handleRef.current = replacementTarget === undefined
+      ? coordinatorRef.current?.start(file)
+      : coordinatorRef.current?.startReplacement(file, replacementTarget);
   }
 
   function retry(): void {
@@ -72,7 +75,9 @@ export function ImportOverlay({ isOpen, onOpenChange, repository, workerFactory 
       return;
     }
     dispatch({ type: "retry" });
-    handleRef.current = coordinatorRef.current?.start(file);
+    handleRef.current = replacementTarget === undefined
+      ? coordinatorRef.current?.start(file)
+      : coordinatorRef.current?.startReplacement(file, replacementTarget);
   }
 
   function cancel(): void {
@@ -82,7 +87,7 @@ export function ImportOverlay({ isOpen, onOpenChange, repository, workerFactory 
 
   if (!isOpen) return null;
   const fileName = state.status === "validating" ? state.file.name : selectedFileName;
-  const title = state.status === "decision" ? importCopy.decisions.title : state.status === "replace-handoff" ? importCopy.decisions.replaceHandoffTitle : state.status === "succeeded" ? importCopy.succeeded : importCopy.title;
+  const title = state.status === "decision" ? importCopy.decisions.title : state.status === "succeeded" ? importCopy.succeeded : replacementTarget === undefined ? importCopy.title : importCopy.decisions.explicitTitle(replacementTarget.title);
   const isFinalizing = state.status === "finalizing";
 
   return (
@@ -106,23 +111,33 @@ export function ImportOverlay({ isOpen, onOpenChange, repository, workerFactory 
         ) : null}
         {state.status === "failed" ? <ImportFailure error={state.error} retry={state.retry} /> : null}
         {state.status === "cancelled" ? <p className="import-overlay__notice" role="status">{importCopy.cancelled} {importCopy.noPartial}</p> : null}
-        {state.status === "succeeded" ? <p className="import-overlay__notice" role="status">{importCopy.succeeded}</p> : null}
+        {state.status === "succeeded" ? <ImportSuccess state={state} /> : null}
         {state.status === "decision" ? <ImportDecision state={state} selectedCandidateId={selectedCandidateId} onSelectedCandidateChange={setSelectedCandidateId} onOpenExisting={() => { requestClose(false); }} /> : null}
-        {state.status === "replace-handoff" ? <p className="import-overlay__notice" role="status">{importCopy.decisions.replaceHandoffDescription(state.candidate.title)}</p> : null}
         {dismissNotice ? <p className="import-overlay__notice" role="status">{importCopy.runningHint}</p> : null}
       </div>
       <DialogFooter className="import-overlay__footer">
-        {state.status === "idle" || state.status === "failed" || state.status === "cancelled" || state.status === "replace-handoff" ? <Button onPress={() => { requestClose(false); }} variant="outline">{importCopy.close}</Button> : null}
+        {state.status === "idle" || state.status === "failed" || state.status === "cancelled" ? <Button onPress={() => { requestClose(false); }} variant="outline">{importCopy.close}</Button> : null}
         {state.status === "running" && state.canCancel ? <Button onPress={cancel} variant="outline">{importCopy.cancel}</Button> : null}
         {state.status === "failed" && state.retry !== "select-file" ? <Button onPress={retry}>{importCopy.retry}</Button> : null}
         {state.status === "failed" && state.retry === "select-file" ? <Button onPress={() => { dispatch({ type: "retry" }); }}>{importCopy.chooseFile}</Button> : null}
         {state.status === "cancelled" ? <Button onPress={() => { dispatch({ type: "retry" }); }}>{importCopy.chooseFile}</Button> : null}
-        {state.status === "succeeded" ? <><Button onPress={() => { requestClose(false); }} variant="outline">{importCopy.done}</Button><Link className="import-overlay__open" to={`/documents/${state.documentId}`}>{importCopy.open}</Link></> : null}
+        {state.status === "succeeded" ? <><Button onPress={() => { requestClose(false); }} variant="outline">{importCopy.done}</Button>{state.replacement?.cleanup === "pending" ? <Button onPress={() => { void coordinatorRef.current?.retryReplacementCleanup(); }} variant="outline">{importCopy.decisions.retryCleanup}</Button> : null}<Link className="import-overlay__open" to={`/documents/${state.documentId}`}>{importCopy.open}</Link></> : null}
         {state.status === "decision" && state.context.kind === "exact-duplicate" ? <Button onPress={() => { requestClose(false); }} variant="outline">{importCopy.close}</Button> : null}
-        {state.status === "decision" && state.context.kind === "possible-update" ? <DecisionActions context={state.context} selectedCandidateId={selectedCandidateId} onCancel={() => { void coordinatorRef.current?.cancelDecision(); }} onReplace={(documentId) => { coordinatorRef.current?.handoffReplace(documentId); }} onSeparate={() => { void coordinatorRef.current?.continueSeparately(); }} /> : null}
+        {state.status === "decision" && state.context.kind === "possible-update" ? <DecisionActions context={state.context} selectedCandidateId={selectedCandidateId} onCancel={() => { void coordinatorRef.current?.cancelDecision(); }} onReplace={(documentId) => { void coordinatorRef.current?.continueReplacing(documentId); }} onSeparate={() => { void coordinatorRef.current?.continueSeparately(); }} /> : null}
       </DialogFooter>
     </Dialog>
   );
+}
+
+export function ImportSuccess({ state }: { readonly state: Extract<ImportControllerVisibleState, { readonly status: "succeeded" }> }) {
+  const replacement = state.replacement;
+  if (replacement === undefined) return <p className="import-overlay__notice" role="status">{importCopy.succeeded}</p>;
+  const mapping = replacement.confidence === "exact"
+    ? importCopy.decisions.replaceExact
+    : replacement.confidence === "approximate"
+      ? importCopy.decisions.replaceApproximate
+      : importCopy.decisions.replaceNone;
+  return <section className="import-overlay__notice" role="status"><p>{mapping}</p>{replacement.cleanup === "pending" ? <p>{importCopy.decisions.cleanupPending}</p> : null}</section>;
 }
 
 function ImportDecision({ state, selectedCandidateId, onSelectedCandidateChange, onOpenExisting }: {
@@ -178,9 +193,8 @@ function fromCoordinator(state: ImportUiState): ImportControllerEvent {
     case "cancelling": return { type: "cancel-requested" };
     case "finalizing": return { type: "finalizing" };
     case "cancelled": return { type: "cancelled" };
-    case "succeeded": return { type: "succeeded", documentId: state.documentId };
+    case "succeeded": return { type: "succeeded", documentId: state.documentId, ...(state.replacement === undefined ? {} : { replacement: state.replacement }) };
     case "failed": return { type: "failed", error: state.error, retry: state.retry };
     case "decision": return { type: "decision", context: state.context };
-    case "replace-handoff": return { type: "replace-handoff", candidate: state.candidate };
   }
 }

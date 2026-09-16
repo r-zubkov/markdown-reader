@@ -145,6 +145,11 @@ interface ReaderState {
   anchor?: SemanticAnchor;
   progressRatio: number;
   lastSectionId?: string;
+  pendingRestoreNotice?: {
+    versionId: VersionId;
+    confidence: 'approximate' | 'none';
+    reason: MappingReasonCode;
+  };
   updatedAt: number;
 }
 
@@ -270,13 +275,14 @@ Persisted content never includes live DOM nodes, React elements, complete AST or
 - Stage new version under same `documentId`.
 - Map anchor before/within commit result.
 - Commit only if Document still points to expected current version; otherwise `COMMIT_CONFLICT`.
-- Old version/chunks cleanup occurs after successful switch; cleanup is idempotent.
+- The same commit writes the mapped ReaderState. Approximate/none mapping also writes a version-scoped `pendingRestoreNotice`; Reader consumes it once and removes it idempotently.
+- Old version/chunks cleanup occurs after successful switch; cleanup is idempotent. A visible retry is available while the result is open, and startup retries ready versions only when their owning Document safely points to another current version.
 
 ### Cancel/failure/startup cleanup
 
 - `abortVersion(jobId)` deletes only that staging version/chunks.
 - Startup removes staging older than measured/defined abandonment duration only when no active same-tab job marker; no ready version is touched.
-- Cleanup may be retried. UI visibility derives only from Documents + current ready version.
+- Cleanup may be retried. Startup cleanup may remove a ready version only when its owning Document exists and points to a different version; missing-owner/corrupt cases are preserved for recovery. UI visibility derives only from Documents + current ready version.
 
 ### Delete
 
@@ -285,7 +291,8 @@ One transaction deletes ReaderState, all chunks for all document versions, versi
 ## Versioning and migrations
 
 - Dexie migrations are forward-only, idempotent at record transformation level and separately integration-tested with fixtures from every prior schema shipped.
-- Schema version 3 adds the optional validated `SemanticAnchor` to `readerStates`. Version-2 records without an anchor remain valid and restore at the start; a structurally invalid stored anchor is removed without touching source/version/chunk records. The v1 compatibility fixture upgrades through both migrations.
+- Schema version 3 adds the optional validated `SemanticAnchor` to `readerStates`. Version-2 records without an anchor remain valid and restore at the start; a structurally invalid stored anchor is removed without touching source/version/chunk records.
+- Schema version 4 adds the optional version-scoped replacement notice without changing store indexes. Existing ReaderState records remain valid; migration removes only a malformed notice. The v1 compatibility fixture upgrades through all migrations and a v3 fixture proves malformed-notice cleanup.
 - Migration never deletes `sourceBlob` merely because derived fields are invalid. On unsafe migration failure, app opens recovery state and preserves records.
 - Pipeline mismatch sets derived status stale; rebuild stages from Blob and atomic-switches. Reader may use old ready derived data only if its sanitizer policy is still allowed; a security-invalid pipeline forces blocking reprocess.
 - Pipeline version 4 is the first production pipeline version. It retains version-3 block fingerprints and rebuilds derived output to fix cross-chunk references/footnotes, internal heading links, bounded title metadata and logical `whole` layout safety. The repository exposes source Blob recovery without branding stale HTML; rebuild uses the current-version precondition.
@@ -299,7 +306,7 @@ One transaction deletes ReaderState, all chunks for all document versions, versi
 - Mapping order on mode/strategy: same block → same heading path + ordinal → nearest heading → source ratio → start. Same block and same-version path/ordinal are exact; later fallbacks are approximate.
 - Mapping across versions: unique source/target content fingerprint → normalized full path + ordinal → nearest matching non-root ancestor + relative subtree ordinal → source ratio only when structural similarity is at least `0.20` → start. Structural similarity is the Dice coefficient over unique fingerprints and non-root heading paths. Only the unique-fingerprint result is exact; path/ancestor/ratio results are approximate; start/empty results are none.
 - Exact tolerance is zero meaningful-block distance. Approximate corpus tolerance is at most one meaningful block and always triggers the restore notice. None persists progress zero at target start, or no anchor for an empty target. All ratios are clamped to `[0,1]`.
-- `none` opens start and visible notice; `approximate` shows dismissible notice. Confidence never inferred silently in UI.
+- `none` opens start and visible notice; `approximate` shows dismissible notice. A replacement notice is persisted with its target version, shown once in Reader, then removed idempotently. Confidence never inferred silently in UI.
 
 ## Quota, corruption, limits
 

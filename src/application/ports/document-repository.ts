@@ -4,7 +4,7 @@ import type {
   SectionLayout,
   SplitStrategy,
 } from "@/domain/content/pipeline-types";
-import type { MappingReasonCode } from "@/domain/reading/progress-mapping";
+import type { MappingReasonCode, RestoreConfidence } from "@/domain/reading/progress-mapping";
 
 export type RepositoryErrorCode =
   | "DB_UNAVAILABLE"
@@ -12,6 +12,7 @@ export type RepositoryErrorCode =
   | "STALE_DERIVED"
   | "QUOTA_EXCEEDED"
   | "COMMIT_CONFLICT"
+  | "CLEANUP_FAILED"
   | "DOCUMENT_NOT_FOUND"
   | "INVALID_PERSISTED_RECORD"
   | "UNKNOWN_STORAGE_ERROR";
@@ -134,7 +135,28 @@ export interface ReaderStateSnapshot {
   readonly anchor?: SemanticAnchorSnapshot;
   readonly progressRatio: number;
   readonly lastSectionId?: string;
+  readonly pendingRestoreNotice?: ReaderRestoreNotice;
   readonly updatedAt: number;
+}
+
+export interface ReaderRestoreNotice {
+  readonly versionId: string;
+  readonly confidence: Exclude<RestoreConfidence, "exact">;
+  readonly reason: MappingReasonCode;
+}
+
+export interface ReplacementCommitResult {
+  readonly replacedVersionId: string;
+  readonly confidence: RestoreConfidence;
+  readonly reason: MappingReasonCode;
+  readonly structuralSimilarity: number;
+  readonly cleanup: "complete" | "pending";
+}
+
+export interface CommitVersionResult {
+  readonly documentId: string;
+  readonly versionId: string;
+  readonly replacement?: ReplacementCommitResult;
 }
 
 export interface AppPreferencesSnapshot {
@@ -156,12 +178,15 @@ export interface DocumentRepository {
     readonly versionId: string;
     readonly jobId: string;
     readonly readyAt: number;
-  }): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string }>>;
+    /** Captured before staging so replacement never silently adopts a later position. */
+    readonly replacementReaderState?: ReaderStateSnapshot;
+  }): Promise<RepositoryResult<CommitVersionResult>>;
   abortVersion(jobId: string): Promise<RepositoryResult<void>>;
   cleanupAbandonedStaging(input: {
     readonly olderThan: number;
     readonly activeJobIds?: ReadonlySet<string>;
   }): Promise<RepositoryResult<void>>;
+  cleanupObsoleteReadyVersions(): Promise<RepositoryResult<void>>;
   findImportIdentityMatches(input: {
     readonly contentHash: string;
     readonly normalizedTitle: string;
@@ -196,6 +221,11 @@ export interface DocumentRepository {
     readonly modeOrigin: ReaderStateSnapshot["modeOrigin"];
     readonly splitStrategy: SplitStrategy;
     readonly updatedAt: number;
+  }): Promise<RepositoryResult<void>>;
+  retryReplacementCleanup(versionId: string): Promise<RepositoryResult<void>>;
+  dismissReaderRestoreNotice(input: {
+    readonly documentId: string;
+    readonly versionId: string;
   }): Promise<RepositoryResult<void>>;
   getPreferences(): Promise<RepositoryResult<AppPreferencesSnapshot>>;
   saveTheme(theme: AppPreferencesSnapshot["theme"], updatedAt: number): Promise<RepositoryResult<void>>;

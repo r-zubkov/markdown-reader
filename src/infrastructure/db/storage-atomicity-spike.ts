@@ -8,8 +8,9 @@ import type {
   SectionRef,
   SplitStrategy,
 } from "@/domain/content/pipeline-types";
+import { MAPPING_REASON_CODES, MAPPING_REASON_CONFIDENCE, type MappingReasonCode } from "@/domain/reading/progress-mapping";
 
-export const STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION = 3;
+export const STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION = 4;
 export const STORAGE_ATOMICITY_SPIKE_PIPELINE_VERSION = 1;
 
 const splitStrategies = ["auto", "h1", "h2", "h3", "whole"] as const satisfies readonly SplitStrategy[];
@@ -113,7 +114,14 @@ export interface StorageReaderStateRecord {
   anchor?: StorageSemanticAnchor;
   progressRatio: number;
   lastSectionId?: string;
+  pendingRestoreNotice?: StorageReaderRestoreNotice;
   updatedAt: number;
+}
+
+export interface StorageReaderRestoreNotice {
+  versionId: string;
+  confidence: "approximate" | "none";
+  reason: MappingReasonCode;
 }
 
 export interface StorageSemanticAnchor {
@@ -164,6 +172,7 @@ export interface CommitStorageVersionInput {
   readonly versionId: string;
   readonly jobId: string;
   readonly readyAt: number;
+  readonly replacementReaderState?: StorageReaderStateRecord;
 }
 
 export interface CommitStorageVersionResult {
@@ -361,6 +370,22 @@ export class StorageAtomicitySpikeRepository {
                 "Replacement expected-current precondition failed.",
               );
             }
+
+            if (
+              input.replacementReaderState !== undefined &&
+              !isReplacementReaderState(
+              input.replacementReaderState,
+              version.documentId,
+              version.id,
+              stagedChunks,
+              version.layouts,
+            )
+            ) {
+              throwStorageError(
+                "INVALID_VERSION_METADATA",
+                "Mapped replacement reader state is invalid.",
+              );
+            }
           }
 
           await this.failureHooks.beforeCommitPointerSwitch?.({
@@ -391,7 +416,9 @@ export class StorageAtomicitySpikeRepository {
           });
 
           const existingReaderState = await this.readerStates.get(version.documentId);
-          if (existingReaderState === undefined) {
+          if (input.replacementReaderState !== undefined) {
+            await this.readerStates.put(input.replacementReaderState);
+          } else if (existingReaderState === undefined) {
             await this.readerStates.add(createDefaultReaderState(version.documentId, input.readyAt));
           }
 
@@ -477,6 +504,37 @@ export class StorageAtomicitySpikeRepository {
         },
       );
 
+      return succeeded(value);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
+  /** Retries only ready versions whose owning Document points elsewhere. */
+  public async cleanupObsoleteReadyVersions(): Promise<StorageSpikeResult<CleanupResult>> {
+    try {
+      const value = await this.database.transaction(
+        "rw",
+        this.documents,
+        this.versions,
+        this.chunks,
+        async () => {
+          const readyVersions = await this.versions.where("state").equals("ready").toArray();
+          const removableIds: string[] = [];
+          for (const version of readyVersions) {
+            const document = await this.documents.get(version.documentId);
+            if (document !== undefined && document.currentVersionId !== version.id) {
+              try {
+                await this.failureHooks.beforeCleanupDelete?.({ versionId: version.id });
+              } catch {
+                throwStorageError("CLEANUP_FAILED", "Startup replacement cleanup failed before deletion.");
+              }
+              removableIds.push(version.id);
+            }
+          }
+          return this.removeVersions(removableIds);
+        },
+      );
       return succeeded(value);
     } catch (error) {
       return failed(mapStorageError(error));
@@ -805,6 +863,27 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  public async dismissReaderRestoreNotice(input: {
+    readonly documentId: string;
+    readonly versionId: string;
+  }): Promise<StorageSpikeResult<void>> {
+    try {
+      if (!isNonEmptyString(input.documentId) || !isNonEmptyString(input.versionId)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Restore-notice identity is invalid.");
+      }
+      await this.database.transaction("rw", this.readerStates, async () => {
+        const state = await this.readerStates.get(input.documentId);
+        if (state?.pendingRestoreNotice?.versionId !== input.versionId) return;
+        const next = { ...state };
+        delete next.pendingRestoreNotice;
+        await this.readerStates.put(next);
+      });
+      return succeeded(undefined);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
   public async findChunkOrdinalByBlockId(versionId: string, blockId: string): Promise<StorageSpikeResult<number | undefined>> {
     try {
       if (!isNonEmptyString(versionId) || !isNonEmptyString(blockId)) {
@@ -1036,7 +1115,7 @@ export function createStorageAtomicitySpikeDatabase(databaseName: string): Dexie
     });
 
   database
-    .version(STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION)
+    .version(3)
     .stores({
       chunks: "[versionId+ordinal], versionId, [versionId+sourceStart], jobId, batchOrdinal",
       documentVersions:
@@ -1056,6 +1135,31 @@ export function createStorageAtomicitySpikeDatabase(databaseName: string): Dexie
         throw new StorageSpikeOperationError({
           code: "MIGRATION_FAILED",
           message: error instanceof Error ? error.message : "Reader-state migration failed.",
+        });
+      }
+    });
+
+  database
+    .version(STORAGE_ATOMICITY_SPIKE_DB_SCHEMA_VERSION)
+    .stores({
+      chunks: "[versionId+ordinal], versionId, [versionId+sourceStart], jobId, batchOrdinal",
+      documentVersions:
+        "id, documentId, state, contentHash, [documentId+state], jobId, importedAt",
+      documents: "id, normalizedTitle, normalizedFileName, lastOpenedAt, updatedAt",
+      preferences: "key",
+      readerStates: "documentId, updatedAt",
+    })
+    .upgrade(async (transaction) => {
+      try {
+        await transaction.table<StorageReaderStateRecord, string>("readerStates").toCollection().modify((record) => {
+          if (record.pendingRestoreNotice !== undefined && !isStorageReaderRestoreNotice(record.pendingRestoreNotice)) {
+            delete record.pendingRestoreNotice;
+          }
+        });
+      } catch (error) {
+        throw new StorageSpikeOperationError({
+          code: "MIGRATION_FAILED",
+          message: error instanceof Error ? error.message : "Restore-notice migration failed.",
         });
       }
     });
@@ -1098,6 +1202,28 @@ export async function seedStorageAtomicityLegacyV1Database(input: {
       await versions.add(input.version);
       await chunks.bulkAdd(input.chunks);
     });
+  } finally {
+    database.close();
+  }
+}
+
+export async function seedStorageAtomicityLegacyV3ReaderState(input: {
+  readonly databaseName: string;
+  readonly readerState: Omit<StorageReaderStateRecord, "pendingRestoreNotice"> & {
+    readonly pendingRestoreNotice?: unknown;
+  };
+}): Promise<void> {
+  const database = new Dexie(input.databaseName);
+  database.version(3).stores({
+    chunks: "[versionId+ordinal], versionId, [versionId+sourceStart], jobId, batchOrdinal",
+    documentVersions: "id, documentId, state, contentHash, [documentId+state], jobId, importedAt",
+    documents: "id, normalizedTitle, normalizedFileName, lastOpenedAt, updatedAt",
+    preferences: "key",
+    readerStates: "documentId, updatedAt",
+  });
+  await database.open();
+  try {
+    await database.table("readerStates").put(input.readerState);
   } finally {
     database.close();
   }
@@ -1212,6 +1338,45 @@ function isStorageSemanticAnchor(value: unknown): value is StorageSemanticAnchor
   const record = value as Record<string, unknown>;
   return isNonEmptyString(record.versionId) && isNonEmptyString(record.headingPathKey) && isNonEmptyString(record.blockId)
     && isSafeNonNegativeInteger(record.blockOrdinalWithinHeading) && isRatio(record.intraBlockRatio) && isRatio(record.overallSourceRatio);
+}
+
+function isStorageReaderRestoreNotice(value: unknown): value is StorageReaderRestoreNotice {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  const reason = record.reason;
+  return isNonEmptyString(record.versionId)
+    && (record.confidence === "approximate" || record.confidence === "none")
+    && typeof reason === "string"
+    && MAPPING_REASON_CODES.includes(reason as MappingReasonCode)
+    && MAPPING_REASON_CONFIDENCE[reason as MappingReasonCode] === record.confidence;
+}
+
+function isReplacementReaderState(
+  value: unknown,
+  documentId: string,
+  targetVersionId: string,
+  targetChunks: readonly StorageChunkRecord[],
+  targetLayouts: Record<SplitStrategy, SectionLayout>,
+): value is StorageReaderStateRecord {
+  if (typeof value !== "object" || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (!(record.documentId === documentId
+    && (record.readingMode === "continuous" || record.readingMode === "sections")
+    && (record.modeOrigin === "auto" || record.modeOrigin === "user")
+    && typeof record.splitStrategy === "string"
+    && splitStrategies.includes(record.splitStrategy as SplitStrategy)
+    && isRatio(record.progressRatio)
+    && isSafeNonNegativeInteger(record.updatedAt)
+    && (record.pendingRestoreNotice === undefined
+      || isStorageReaderRestoreNotice(record.pendingRestoreNotice)
+        && record.pendingRestoreNotice.versionId === targetVersionId))) return false;
+  const anchor = record.anchor;
+  if (anchor !== undefined && (!isStorageSemanticAnchor(anchor)
+    || anchor.versionId !== targetVersionId
+    || !targetChunks.some((chunk) => chunk.blockAnchors.some((candidate) => candidate.blockId === anchor.blockId)))) return false;
+  const lastSectionId = record.lastSectionId;
+  return lastSectionId === undefined || isNonEmptyString(lastSectionId)
+    && splitStrategies.some((strategy) => targetLayouts[strategy].sectionIds.includes(lastSectionId));
 }
 
 function isRatio(value: unknown): value is number {

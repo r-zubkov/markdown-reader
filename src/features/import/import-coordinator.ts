@@ -1,4 +1,11 @@
-import type { DocumentRepository, ImportIdentityMatch, RepositoryErrorCode, RepositoryResult } from "@/application/ports/document-repository";
+import type {
+  DocumentRepository,
+  ImportIdentityMatch,
+  ReaderStateSnapshot,
+  ReplacementCommitResult,
+  RepositoryErrorCode,
+  RepositoryResult,
+} from "@/application/ports/document-repository";
 import { PIPELINE_LIMITS, PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import type { PipelineMetadata } from "@/domain/content/pipeline-types";
 import { normalizeIdentityFileName, normalizeIdentityText } from "@/domain/documents/import-identity";
@@ -36,8 +43,7 @@ export type ImportUiState =
   | { readonly status: "cancelling" }
   | { readonly status: "finalizing" }
   | { readonly status: "decision"; readonly context: ImportDecisionContext }
-  | { readonly status: "replace-handoff"; readonly candidate: ImportIdentityMatch }
-  | { readonly status: "succeeded"; readonly documentId: string }
+  | { readonly status: "succeeded"; readonly documentId: string; readonly replacement?: ReplacementCommitResult }
   | { readonly status: "failed"; readonly error: ImportErrorCode; readonly retry: RetryKind }
   | { readonly status: "cancelled" };
 
@@ -63,6 +69,10 @@ interface ActiveJob {
   readonly versionId: string;
   readonly worker: ImportWorkerPort;
   expectedCurrentVersionId?: string;
+  replacementReaderState?: ReaderStateSnapshot;
+  explicitReplacement?: ImportIdentityMatch;
+  readonly bypassIdentityDecision: boolean;
+  decisionResolving: boolean;
   expectedBatchOrdinal: number;
   receivedChunkCount: number;
   metadata?: PipelineMetadata;
@@ -77,6 +87,7 @@ const CANCEL_HANDSHAKE_TIMEOUT_MS = 500;
 
 export class ImportCoordinator {
   private activeJob: ActiveJob | undefined;
+  private lastSuccess: Extract<ImportUiState, { readonly status: "succeeded" }> | undefined;
 
   public constructor(
     private readonly repository: DocumentRepository,
@@ -88,6 +99,10 @@ export class ImportCoordinator {
 
   public start(file: File): ImportHandle {
     return this.startJob(file, this.createId());
+  }
+
+  public startReplacement(file: File, target: ImportIdentityMatch): ImportHandle {
+    return this.startJob(file, target.documentId, target.currentVersionId, target);
   }
 
   public async rebuild(documentId: string): Promise<RepositoryResult<ImportHandle>> {
@@ -103,18 +118,26 @@ export class ImportCoordinator {
     });
     return {
       ok: true,
-      value: this.startJob(file, source.value.documentId, source.value.currentVersionId),
+      value: this.startJob(file, source.value.documentId, source.value.currentVersionId, undefined, true),
     };
   }
 
-  private startJob(file: File, documentId: string, expectedCurrentVersionId?: string): ImportHandle {
+  private startJob(
+    file: File,
+    documentId: string,
+    expectedCurrentVersionId?: string,
+    explicitReplacement?: ImportIdentityMatch,
+    bypassIdentityDecision = false,
+  ): ImportHandle {
     if (this.activeJob !== undefined) return { cancel: () => Promise.resolve({ status: "already-terminal" }) };
+    this.lastSuccess = undefined;
     const worker = this.workerFactory();
     const job: ActiveJob = {
       documentId, file, jobId: this.createId(), versionId: this.createId(), worker,
       expectedBatchOrdinal: 0, receivedChunkCount: 0, queue: Promise.resolve(), cancelling: false, terminal: false,
-      deferredMessages: [],
+      bypassIdentityDecision, decisionResolving: false, deferredMessages: [],
       ...(expectedCurrentVersionId === undefined ? {} : { expectedCurrentVersionId }),
+      ...(explicitReplacement === undefined ? {} : { explicitReplacement }),
     };
     this.activeJob = job;
     worker.onmessage = (event) => { this.enqueue(job, () => this.receive(job, event.data)); };
@@ -135,26 +158,39 @@ export class ImportCoordinator {
 
   public async continueSeparately(): Promise<void> {
     const job = this.activeJob;
-    if (job?.decision?.context.kind !== "possible-update") return;
+    if (job?.decision?.context.kind !== "possible-update" || job.decisionResolving) return;
+    job.decisionResolving = true;
+    this.publish({ status: "finalizing" });
     const metadata = job.decision.metadata;
     delete job.decision;
     await this.stageReadyMetadata(job, metadata);
     this.replayDeferredMessages(job);
   }
 
-  /**
-   * P04-T02 owns mapped replacement. This handoff records the explicitly
-   * chosen target without claiming a replacement was committed.
-   */
-  public handoffReplace(documentId: string): void {
+  public async continueReplacing(documentId: string): Promise<void> {
     const job = this.activeJob;
-    if (job?.decision?.context.kind !== "possible-update") return;
+    if (job?.decision?.context.kind !== "possible-update" || job.decisionResolving) return;
     const candidate = job.decision.context.candidates.find((entry) => entry.documentId === documentId);
     if (candidate === undefined) return;
-    job.terminal = true;
-    job.worker.terminate();
-    this.activeJob = undefined;
-    this.publish({ status: "replace-handoff", candidate });
+    job.decisionResolving = true;
+    this.publish({ status: "finalizing" });
+    await this.prepareReplacement(job, candidate, job.decision.metadata);
+  }
+
+  public async retryReplacementCleanup(): Promise<void> {
+    const success = this.lastSuccess;
+    if (success?.replacement?.cleanup !== "pending") return;
+    const result = await this.repository.retryReplacementCleanup(success.replacement.replacedVersionId);
+    if (!result.ok) {
+      this.publish(success);
+      return;
+    }
+    const next: typeof success = {
+      ...success,
+      replacement: { ...success.replacement, cleanup: "complete" },
+    };
+    this.lastSuccess = next;
+    this.publish(next);
   }
 
   public async cancelDecision(): Promise<void> {
@@ -215,6 +251,10 @@ export class ImportCoordinator {
   private async stage(job: ActiveJob, metadata: PipelineMetadata): Promise<void> {
     if (job.metadata !== undefined) { await this.fail(job, "PROTOCOL_MISMATCH"); return; }
     job.metadata = metadata;
+    if (job.bypassIdentityDecision) {
+      await this.stageReadyMetadata(job, metadata);
+      return;
+    }
     const matches = await this.repository.findImportIdentityMatches({
       contentHash: metadata.contentHash,
       normalizedFileName: normalizeIdentityFileName(job.file.name),
@@ -226,6 +266,10 @@ export class ImportCoordinator {
       job.worker.terminate();
       if (this.activeJob === job) this.activeJob = undefined;
       this.publish({ status: "decision", context: { kind: "exact-duplicate", duplicates: matches.value.exactDuplicates } });
+      return;
+    }
+    if (job.explicitReplacement !== undefined) {
+      await this.prepareReplacement(job, job.explicitReplacement, metadata);
       return;
     }
     if (matches.value.possibleUpdates.length > 0) {
@@ -255,6 +299,25 @@ export class ImportCoordinator {
     if (!result.ok) { await this.fail(job, result.error.code); return; }
   }
 
+  private async prepareReplacement(job: ActiveJob, candidate: ImportIdentityMatch, metadata: PipelineMetadata): Promise<void> {
+    const current = await this.repository.getCurrentDocument(candidate.documentId);
+    if (!current.ok) { await this.fail(job, current.error.code); return; }
+    if (current.value.versionId !== candidate.currentVersionId) { await this.fail(job, "COMMIT_CONFLICT"); return; }
+    const readerState = await this.repository.getReaderState(candidate.documentId);
+    if (!readerState.ok) { await this.fail(job, readerState.error.code); return; }
+    const captured = readerState.value ?? defaultReaderState(candidate.documentId, this.now());
+    if (captured.anchor !== undefined && captured.anchor.versionId !== candidate.currentVersionId) {
+      await this.fail(job, "COMMIT_CONFLICT");
+      return;
+    }
+    job.documentId = candidate.documentId;
+    job.expectedCurrentVersionId = candidate.currentVersionId;
+    job.replacementReaderState = captured;
+    delete job.decision;
+    await this.stageReadyMetadata(job, metadata);
+    this.replayDeferredMessages(job);
+  }
+
   private replayDeferredMessages(job: ActiveJob): void {
     const messages = job.deferredMessages.splice(0);
     for (const message of messages) this.enqueue(job, () => this.receive(job, message));
@@ -282,12 +345,23 @@ export class ImportCoordinator {
       message.result.batchCount !== job.expectedBatchOrdinal
     ) { await this.fail(job, "PROTOCOL_MISMATCH"); return; }
     this.publish({ status: "finalizing" });
-    const result = await this.repository.commitVersion({ versionId: job.versionId, jobId: job.jobId, readyAt: this.now() });
+    const result = await this.repository.commitVersion({
+      versionId: job.versionId,
+      jobId: job.jobId,
+      readyAt: this.now(),
+      ...(job.replacementReaderState === undefined ? {} : { replacementReaderState: job.replacementReaderState }),
+    });
     if (!result.ok) { await this.fail(job, result.error.code); return; }
     job.terminal = true;
     job.worker.terminate();
     this.activeJob = undefined;
-    this.publish({ status: "succeeded", documentId: result.value.documentId });
+    const success: Extract<ImportUiState, { readonly status: "succeeded" }> = {
+      documentId: result.value.documentId,
+      ...(result.value.replacement === undefined ? {} : { replacement: result.value.replacement }),
+      status: "succeeded",
+    };
+    this.lastSuccess = success;
+    this.publish(success);
   }
 
   private cancel(job: ActiveJob): Promise<CancelResult> {
@@ -322,6 +396,17 @@ export class ImportCoordinator {
     if (this.activeJob === job) this.activeJob = undefined;
     this.publish({ status: "failed", error, retry: retryKind(error) });
   }
+}
+
+function defaultReaderState(documentId: string, updatedAt: number): ReaderStateSnapshot {
+  return {
+    documentId,
+    modeOrigin: "auto",
+    progressRatio: 0,
+    readingMode: "continuous",
+    splitStrategy: "auto",
+    updatedAt,
+  };
 }
 
 function retryKind(error: ImportErrorCode): RetryKind {

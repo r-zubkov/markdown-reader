@@ -41,4 +41,18 @@ describe("importControllerReducer", () => {
     expect(importControllerReducer(finalizing, { type: "succeeded", documentId: "document-2" })).toEqual({ status: "succeeded", documentId: "document-2" });
     expect(importControllerReducer(decision, { type: "cancelled" })).toEqual({ status: "cancelled" });
   });
+
+  it("updates a successful replacement after idempotent cleanup retry", () => {
+    const replacement = { cleanup: "pending", confidence: "exact", reason: "CROSS_VERSION_CONTENT_FINGERPRINT", replacedVersionId: "old-version", structuralSimilarity: 1 } as const;
+    const pending: ImportControllerVisibleState = {
+      documentId: "document-1",
+      replacement,
+      status: "succeeded",
+    };
+    expect(importControllerReducer(pending, {
+      documentId: "document-1",
+      replacement: { ...replacement, cleanup: "complete" },
+      type: "succeeded",
+    })).toMatchObject({ replacement: { cleanup: "complete" }, status: "succeeded" });
+  });
 });

@@ -1,5 +1,6 @@
 import type {
   AppPreferencesSnapshot,
+  CommitVersionResult,
   CurrentDocumentSnapshot,
   DeleteDocumentResult,
   DocumentRepository,
@@ -17,16 +18,26 @@ import type {
 } from "@/application/ports/document-repository";
 import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import type { BlockAnchor, OutlineItem, SectionLayout, SplitStrategy } from "@/domain/content/pipeline-types";
-import { mapSemanticAnchor } from "@/domain/reading/progress-mapping";
+import { selectInitialReadingMode } from "@/domain/reading/reading-mode";
+import {
+  MAPPING_REASON_CODES,
+  MAPPING_REASON_CONFIDENCE,
+  mapSemanticAnchor,
+  type MappingDocument,
+  type MappingResult,
+} from "@/domain/reading/progress-mapping";
 import {
   StorageAtomicitySpikeRepository,
   type StorageAtomicityFailureHooks,
+  type StorageChunkRecord,
+  type StorageDocumentVersionRecord,
   type StorageSpikeResult,
 } from "@/infrastructure/db/storage-atomicity-spike";
 
-export const DB_SCHEMA_VERSION = 3;
+export const DB_SCHEMA_VERSION = 4;
 export { PIPELINE_VERSION };
 export const MARKDOWN_READER_DATABASE_NAME = "markdown-reader";
+const FINGERPRINT_PIPELINE_VERSION = 3;
 
 /** The sole production persistence adapter. Feature code only sees DocumentRepository. */
 export class DexieDocumentRepository implements DocumentRepository {
@@ -49,7 +60,10 @@ export class DexieDocumentRepository implements DocumentRepository {
     return discard(await this.storage.appendChunkBatch(input));
   }
 
-  public async commitVersion(input: Parameters<DocumentRepository["commitVersion"]>[0]): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string }>> {
+  public async commitVersion(input: Parameters<DocumentRepository["commitVersion"]>[0]): Promise<RepositoryResult<CommitVersionResult>> {
+    if (input.replacementReaderState !== undefined) {
+      return this.commitMappedReplacement({ ...input, replacementReaderState: input.replacementReaderState });
+    }
     const result = await this.storage.commitVersion(input);
     if (!result.ok) return failure(result.error.code);
     return success({ documentId: result.value.documentId, versionId: result.value.versionId });
@@ -59,6 +73,10 @@ export class DexieDocumentRepository implements DocumentRepository {
 
   public async cleanupAbandonedStaging(input: Parameters<DocumentRepository["cleanupAbandonedStaging"]>[0]): Promise<RepositoryResult<void>> {
     return discard(await this.storage.cleanupAbandonedStaging(input));
+  }
+
+  public async cleanupObsoleteReadyVersions(): Promise<RepositoryResult<void>> {
+    return discard(await this.storage.cleanupObsoleteReadyVersions());
   }
 
   public async findImportIdentityMatches(input: Parameters<DocumentRepository["findImportIdentityMatches"]>[0]): Promise<RepositoryResult<ImportIdentityMatches>> {
@@ -188,6 +206,16 @@ export class DexieDocumentRepository implements DocumentRepository {
     return discard(await this.storage.saveReaderPresentation(input));
   }
 
+  public async retryReplacementCleanup(versionId: string): Promise<RepositoryResult<void>> {
+    if (!nonEmpty(versionId)) return failure("INVALID_PERSISTED_RECORD");
+    return discard(await this.storage.cleanupReadyVersion(versionId));
+  }
+
+  public async dismissReaderRestoreNotice(input: Parameters<DocumentRepository["dismissReaderRestoreNotice"]>[0]): Promise<RepositoryResult<void>> {
+    if (!nonEmpty(input.documentId) || !nonEmpty(input.versionId)) return failure("INVALID_PERSISTED_RECORD");
+    return discard(await this.storage.dismissReaderRestoreNotice(input));
+  }
+
   public async getPreferences(): Promise<RepositoryResult<AppPreferencesSnapshot>> {
     const result = await this.storage.getPreferences();
     if (!result.ok) return failure(result.error.code);
@@ -198,17 +226,171 @@ export class DexieDocumentRepository implements DocumentRepository {
   public async saveTheme(theme: AppPreferencesSnapshot["theme"], updatedAt: number): Promise<RepositoryResult<void>> {
     return discard(await this.storage.saveTheme(theme, updatedAt));
   }
+
+  private async commitMappedReplacement(
+    input: Parameters<DocumentRepository["commitVersion"]>[0] & { readonly replacementReaderState: ReaderStateSnapshot },
+  ): Promise<RepositoryResult<CommitVersionResult>> {
+    const stagedResult = await this.storage.getVersion(input.versionId);
+    if (!stagedResult.ok) return failure(stagedResult.error.code);
+    const staged = stagedResult.value;
+    if (staged?.state !== "staging" || staged.jobId !== input.jobId || staged.expectedCurrentVersionId === undefined) {
+      return failure("INVALID_PERSISTED_RECORD");
+    }
+    if (!isReaderState(input.replacementReaderState) || input.replacementReaderState.documentId !== staged.documentId) {
+      return failure("INVALID_PERSISTED_RECORD");
+    }
+    const expectedVersionId = staged.expectedCurrentVersionId;
+    if (input.replacementReaderState.anchor !== undefined && input.replacementReaderState.anchor.versionId !== expectedVersionId) {
+      return failure("COMMIT_CONFLICT");
+    }
+
+    const currentResult = await this.storage.getCurrentReadyVersion(staged.documentId);
+    if (!currentResult.ok) return failure(currentResult.error.code);
+    if (currentResult.value.id !== expectedVersionId) return failure("COMMIT_CONFLICT");
+    const sourceVersion = currentResult.value;
+    if (sourceVersion.pipelineVersion < FINGERPRINT_PIPELINE_VERSION || sourceVersion.pipelineVersion > PIPELINE_VERSION) {
+      return failure("STALE_DERIVED");
+    }
+    const [sourceChunksResult, targetChunksResult] = await Promise.all([
+      this.storage.getChunks(sourceVersion.id),
+      this.storage.getChunks(staged.id),
+    ]);
+    if (!sourceChunksResult.ok) return failure(sourceChunksResult.error.code);
+    if (!targetChunksResult.ok) return failure(targetChunksResult.error.code);
+    const sourceDocument = mappingDocument(sourceVersion, sourceChunksResult.value);
+    const targetDocument = mappingDocument(staged, targetChunksResult.value);
+    if (sourceDocument === undefined || targetDocument === undefined || staged.pipelineVersion !== PIPELINE_VERSION) {
+      return failure("INVALID_PERSISTED_RECORD");
+    }
+
+    const mapping = input.replacementReaderState.anchor === undefined
+      ? mappingFromStart(targetDocument)
+      : mapSemanticAnchor(input.replacementReaderState.anchor, sourceDocument, targetDocument);
+    const mappedReaderState = mapReplacementReaderState(
+      input.replacementReaderState,
+      staged,
+      targetChunksResult.value,
+      mapping,
+      input.readyAt,
+    );
+    const commit = await this.storage.commitVersion({
+      jobId: input.jobId,
+      readyAt: input.readyAt,
+      replacementReaderState: mappedReaderState,
+      versionId: input.versionId,
+    });
+    if (!commit.ok) return failure(commit.error.code);
+
+    const cleanup = await this.storage.cleanupReadyVersion(expectedVersionId);
+    return success({
+      documentId: commit.value.documentId,
+      replacement: {
+        cleanup: cleanup.ok ? "complete" : "pending",
+        confidence: mapping.confidence,
+        reason: mapping.reason,
+        replacedVersionId: expectedVersionId,
+        structuralSimilarity: mapping.structuralSimilarity,
+      },
+      versionId: commit.value.versionId,
+    });
+  }
 }
 
 function discard<T>(result: StorageSpikeResult<T>): RepositoryResult<void> {
   return result.ok ? success(undefined) : failure(result.error.code);
 }
+
+function mappingDocument(
+  version: StorageDocumentVersionRecord,
+  chunks: readonly StorageChunkRecord[],
+): MappingDocument | undefined {
+  if (
+    !nonEmpty(version.id)
+    || !nonNegative(version.charLength)
+    || !nonNegative(version.chunkCount)
+    || chunks.length !== version.chunkCount
+    || version.stagedChunkCount !== version.chunkCount
+  ) return undefined;
+  const blocks: BlockAnchor[] = [];
+  for (let ordinal = 0; ordinal < chunks.length; ordinal += 1) {
+    const chunk = chunks[ordinal];
+    if (
+      chunk?.ordinal !== ordinal
+      || chunk.versionId !== version.id
+      || chunk.pipelineVersion !== version.pipelineVersion
+      || !nonNegative(chunk.sourceStart)
+      || !nonNegative(chunk.sourceEnd)
+      || chunk.sourceEnd < chunk.sourceStart
+      || chunk.blockAnchors.some((anchor) => !isBlockAnchor(anchor, chunk.sourceStart, chunk.sourceEnd))
+    ) return undefined;
+    blocks.push(...chunk.blockAnchors);
+  }
+  return { blocks, sourceLength: version.charLength, versionId: version.id };
+}
+
+function mappingFromStart(target: MappingDocument): MappingResult {
+  const first = [...target.blocks]
+    .filter((block) => isBlockAnchor(block, 0, Number.MAX_SAFE_INTEGER))
+    .sort((left, right) => left.sourceStart - right.sourceStart || left.blockId.localeCompare(right.blockId))[0];
+  if (first === undefined) {
+    return { confidence: "none", reason: "TARGET_EMPTY", structuralSimilarity: 0 };
+  }
+  return {
+    anchor: {
+      blockId: first.blockId,
+      blockOrdinalWithinHeading: first.blockOrdinalWithinHeading,
+      headingPathKey: first.headingPathKey,
+      intraBlockRatio: 0,
+      overallSourceRatio: 0,
+      versionId: target.versionId,
+    },
+    confidence: "none",
+    reason: "NO_RELIABLE_MATCH",
+    structuralSimilarity: 0,
+  };
+}
+
+function mapReplacementReaderState(
+  captured: ReaderStateSnapshot,
+  target: StorageDocumentVersionRecord,
+  targetChunks: readonly StorageChunkRecord[],
+  mapping: MappingResult,
+  updatedAt: number,
+): ReaderStateSnapshot {
+  const splitStrategy = target.layouts[captured.splitStrategy].safeForSelection ? captured.splitStrategy : "auto";
+  const readingMode = captured.modeOrigin === "auto"
+    ? selectInitialReadingMode(target.layouts.whole.sections[0]?.estimatedCost ?? 0)
+    : captured.readingMode;
+  const targetOrdinal = mapping.anchor === undefined
+    ? 0
+    : targetChunks.find((chunk) => chunk.blockAnchors.some((anchor) => anchor.blockId === mapping.anchor?.blockId))?.ordinal ?? 0;
+  const sections = target.layouts[splitStrategy].sections;
+  const section = sections.find((candidate) => candidate.startChunkOrdinal <= targetOrdinal && targetOrdinal <= candidate.endChunkOrdinalInclusive) ?? sections[0];
+  return {
+    ...(mapping.anchor === undefined ? {} : { anchor: mapping.anchor }),
+    documentId: captured.documentId,
+    ...(section === undefined ? {} : { lastSectionId: section.id }),
+    modeOrigin: captured.modeOrigin,
+    ...(mapping.confidence === "exact" ? {} : {
+      pendingRestoreNotice: {
+        confidence: mapping.confidence,
+        reason: mapping.reason,
+        versionId: target.id,
+      },
+    }),
+    progressRatio: mapping.anchor?.overallSourceRatio ?? 0,
+    readingMode,
+    splitStrategy,
+    updatedAt,
+  };
+}
+
 function success<T>(value: T): RepositoryResult<T> { return { ok: true, value }; }
 function failure(storageCode: string): RepositoryResult<never> {
   const code: RepositoryErrorCode = isRepositoryErrorCode(storageCode) ? storageCode : storageCode === "QUOTA_EXCEEDED" ? "QUOTA_EXCEEDED" : storageCode === "MIGRATION_FAILED" ? "MIGRATION_FAILED" : storageCode === "DOCUMENT_NOT_FOUND" ? "DOCUMENT_NOT_FOUND" : storageCode === "CURRENT_VERSION_CONFLICT" ? "COMMIT_CONFLICT" : "UNKNOWN_STORAGE_ERROR";
   return { ok: false, error: { code } };
 }
-function isRepositoryErrorCode(value: string): value is RepositoryErrorCode { return ["DB_UNAVAILABLE", "MIGRATION_FAILED", "STALE_DERIVED", "QUOTA_EXCEEDED", "COMMIT_CONFLICT", "DOCUMENT_NOT_FOUND", "INVALID_PERSISTED_RECORD", "UNKNOWN_STORAGE_ERROR"].includes(value); }
+function isRepositoryErrorCode(value: string): value is RepositoryErrorCode { return ["DB_UNAVAILABLE", "MIGRATION_FAILED", "STALE_DERIVED", "QUOTA_EXCEEDED", "COMMIT_CONFLICT", "CLEANUP_FAILED", "DOCUMENT_NOT_FOUND", "INVALID_PERSISTED_RECORD", "UNKNOWN_STORAGE_ERROR"].includes(value); }
 function isDocumentSummary(value: DocumentSummary): boolean {
   return nonEmpty(value.documentId) && nonEmpty(value.currentVersionId) && nonEmpty(value.title) && nonEmpty(value.fileName) && hash(value.contentHash) && nonNegative(value.activityAt) && nonNegative(value.chunkCount) && ratio(value.progressRatio);
 }
@@ -265,7 +447,8 @@ function isLayouts(value: unknown, chunkCount: number): value is Record<SplitStr
 function isSplitStrategy(value: string): value is SplitStrategy { return ["auto", "h1", "h2", "h3", "whole"].includes(value); }
 function isReadingMode(value: unknown): value is ReaderStateSnapshot["readingMode"] { return value === "continuous" || value === "sections"; }
 function isModeOrigin(value: unknown): value is ReaderStateSnapshot["modeOrigin"] { return value === "auto" || value === "user"; }
-function isReaderState(value: unknown): value is ReaderStateSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.documentId) && (record.readingMode === "continuous" || record.readingMode === "sections") && (record.modeOrigin === "auto" || record.modeOrigin === "user") && ["auto", "h1", "h2", "h3", "whole"].includes(record.splitStrategy as string) && (record.anchor === undefined || isSemanticAnchor(record.anchor)) && ratio(record.progressRatio) && (record.lastSectionId === undefined || nonEmpty(record.lastSectionId)) && nonNegative(record.updatedAt); }
+function isReaderState(value: unknown): value is ReaderStateSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.documentId) && (record.readingMode === "continuous" || record.readingMode === "sections") && (record.modeOrigin === "auto" || record.modeOrigin === "user") && ["auto", "h1", "h2", "h3", "whole"].includes(record.splitStrategy as string) && (record.anchor === undefined || isSemanticAnchor(record.anchor)) && ratio(record.progressRatio) && (record.lastSectionId === undefined || nonEmpty(record.lastSectionId)) && (record.pendingRestoreNotice === undefined || isReaderRestoreNotice(record.pendingRestoreNotice)) && nonNegative(record.updatedAt); }
+function isReaderRestoreNotice(value: unknown): boolean { if (!isRecord(value)) return false; const reason = value.reason; return nonEmpty(value.versionId) && (value.confidence === "approximate" || value.confidence === "none") && typeof reason === "string" && MAPPING_REASON_CODES.includes(reason as (typeof MAPPING_REASON_CODES)[number]) && MAPPING_REASON_CONFIDENCE[reason as (typeof MAPPING_REASON_CODES)[number]] === value.confidence; }
 function isSemanticAnchor(value: unknown): value is SemanticAnchorSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return nonEmpty(record.versionId) && nonEmpty(record.headingPathKey) && nonEmpty(record.blockId) && nonNegative(record.blockOrdinalWithinHeading) && ratio(record.intraBlockRatio) && ratio(record.overallSourceRatio); }
 function isPreferences(value: unknown): value is AppPreferencesSnapshot { if (typeof value !== "object" || value === null) return false; const record = value as Record<string, unknown>; return (record.theme === "system" || record.theme === "light" || record.theme === "dark") && typeof record.remoteImagesEnabled === "boolean" && typeof record.desktopTocCollapsed === "boolean" && nonNegative(record.updatedAt); }
 function nonEmpty(value: unknown): value is string { return typeof value === "string" && value.trim().length > 0; }

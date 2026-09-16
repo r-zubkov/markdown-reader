@@ -26,6 +26,7 @@ class ReaderRepository implements DocumentRepository {
   public commitVersion(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string }>> { return Promise.resolve(ok({ documentId: "document-id", versionId: "version-id" })); }
   public abortVersion(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public cleanupAbandonedStaging(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public cleanupObsoleteReadyVersions(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public findImportIdentityMatches(): Promise<RepositoryResult<{ readonly exactDuplicates: readonly []; readonly possibleUpdates: readonly [] }>> { return Promise.resolve(ok({ exactDuplicates: [], possibleUpdates: [] })); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
@@ -37,6 +38,8 @@ class ReaderRepository implements DocumentRepository {
   public getReaderState(): Promise<RepositoryResult<{ readonly documentId: string; readonly readingMode: "continuous"; readonly modeOrigin: "auto"; readonly splitStrategy: "auto"; readonly anchor: { readonly versionId: string; readonly headingPathKey: string; readonly blockOrdinalWithinHeading: number; readonly blockId: string; readonly intraBlockRatio: number; readonly overallSourceRatio: number }; readonly progressRatio: 0; readonly updatedAt: 0 }>> { return Promise.resolve(ok({ anchor: { blockId: "block-12", blockOrdinalWithinHeading: 12, headingPathKey: "path", intraBlockRatio: 0, overallSourceRatio: 0.63, versionId: "version-id" }, documentId: "document-id", modeOrigin: "auto", progressRatio: 0, readingMode: "continuous", splitStrategy: "auto", updatedAt: 0 })); }
   public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public saveReaderPresentation(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public retryReplacementCleanup(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public dismissReaderRestoreNotice(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public getPreferences(): Promise<RepositoryResult<{ readonly theme: "system"; readonly remoteImagesEnabled: true; readonly desktopTocCollapsed: false; readonly updatedAt: 0 }>> { return Promise.resolve(ok({ desktopTocCollapsed: false, remoteImagesEnabled: true, theme: "system", updatedAt: 0 })); }
   public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
 }

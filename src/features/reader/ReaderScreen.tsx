@@ -68,7 +68,11 @@ export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreen
       setObservedLocation(undefined);
       setPresentationOverride(undefined);
       setSectionIndex(undefined);
-      setRestoreNotice(result.status === "ready" && result.restore !== undefined && result.restore.confidence !== "exact" ? result.restore.confidence : undefined);
+      const pendingNotice = result.status === "ready" ? result.readerState?.pendingRestoreNotice : undefined;
+      setRestoreNotice(pendingNotice?.confidence ?? (result.status === "ready" && result.restore !== undefined && result.restore.confidence !== "exact" ? result.restore.confidence : undefined));
+      if (pendingNotice !== undefined) {
+        void repository.dismissReaderRestoreNotice({ documentId, versionId: pendingNotice.versionId });
+      }
     });
     return () => { active = false; };
   }, [documentId, repository, requestedHash]);

@@ -49,6 +49,7 @@ class CacheRepository implements DocumentRepository {
   public commitVersion(): Promise<RepositoryResult<{ readonly documentId: string; readonly versionId: string }>> { return Promise.resolve(ok({ documentId: "document", versionId: "version" })); }
   public abortVersion(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public cleanupAbandonedStaging(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public cleanupObsoleteReadyVersions(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public findImportIdentityMatches(): Promise<RepositoryResult<ImportIdentityMatches>> { return Promise.resolve(ok({ exactDuplicates: [], possibleUpdates: [] })); }
   public listDocuments(): Promise<RepositoryResult<readonly []>> { return Promise.resolve(ok([])); }
   public observeDocuments(): () => void { return () => undefined; }
@@ -66,6 +67,8 @@ class CacheRepository implements DocumentRepository {
   public getReaderState(): Promise<RepositoryResult<ReaderStateSnapshot | undefined>> { return Promise.resolve(ok(undefined)); }
   public saveReaderAnchor(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public saveReaderPresentation(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public retryReplacementCleanup(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public dismissReaderRestoreNotice(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public getPreferences(): Promise<RepositoryResult<AppPreferencesSnapshot>> { return Promise.resolve(ok({ desktopTocCollapsed: false, remoteImagesEnabled: true, theme: "system", updatedAt: 0 })); }
   public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
 }
