@@ -13,6 +13,15 @@ import {
 } from "@/features/reader/reader-location-observer";
 
 const SECTION_CHUNK_WINDOW_SIZE = 24;
+const FATAL_SECTION_CODES = new Set<RepositoryErrorCode>([
+  "DB_UNAVAILABLE",
+  "DOCUMENT_NOT_FOUND",
+  "MIGRATION_FAILED",
+  "STALE_DERIVED",
+]);
+export type SectionWindowEntry =
+  | { readonly kind: "chunk"; readonly chunk: ReaderChunk }
+  | { readonly kind: "error"; readonly code: RepositoryErrorCode; readonly ordinal: number };
 
 interface SectionReaderProps {
   readonly document: CurrentDocumentSnapshot;
@@ -31,24 +40,20 @@ interface SectionReaderProps {
 
 export function SectionReader({ document, focusTarget, onFatalError, onLocationChange, onTargetSettled, repository, section, targetBlockId, targetId, targetIntraBlockRatio = 0, targetOrdinal, targetRequestKey }: SectionReaderProps) {
   const [sectionWindow, setSectionWindow] = useState(() => createSectionWindow(section, targetOrdinal));
-  const [chunks, setChunks] = useState<readonly ReaderChunk[] | undefined>(undefined);
+  const [chunks, setChunks] = useState<readonly SectionWindowEntry[] | undefined>(undefined);
+  const [requestAttempt, setRequestAttempt] = useState(0);
   const rootRef = useRef<HTMLElement>(null);
   const settledTargetRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
-    void repository.getCurrentChunkWindow({
-      documentId: document.documentId,
-      endOrdinalInclusive: sectionWindow.end,
-      pipelineVersion: document.pipelineVersion,
-      startOrdinal: sectionWindow.start,
-    }).then((result) => {
+    void loadSectionWindow(repository, document.documentId, document.pipelineVersion, sectionWindow.start, sectionWindow.end).then((result) => {
       if (!active) return;
-      if (!result.ok) { onFatalError(result.error.code); return; }
-      setChunks(result.value);
+      if (result.fatalCode !== undefined) { onFatalError(result.fatalCode); return; }
+      setChunks(result.entries);
     });
     return () => { active = false; };
-  }, [document.documentId, document.pipelineVersion, onFatalError, repository, sectionWindow.end, sectionWindow.start]);
+  }, [document.documentId, document.pipelineVersion, onFatalError, repository, requestAttempt, sectionWindow.end, sectionWindow.start]);
 
   useEffect(() => {
     if (chunks === undefined || settledTargetRef.current === targetRequestKey) return;
@@ -67,7 +72,7 @@ export function SectionReader({ document, focusTarget, onFatalError, onLocationC
       if (!(target instanceof HTMLElement)) return;
       settledTargetRef.current = targetRequestKey;
       onTargetSettled();
-      emitSectionLocation(rootRef.current, chunks, document.chunkCount, section.id, onLocationChange);
+      emitSectionLocation(rootRef.current, readerChunks(chunks), document.chunkCount, section.id, onLocationChange);
     };
     frame = requestAnimationFrame(settle);
     return () => { cancelAnimationFrame(frame); };
@@ -78,7 +83,7 @@ export function SectionReader({ document, focusTarget, onFatalError, onLocationC
     let frame = 0;
     const observe = () => {
       cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => { emitSectionLocation(rootRef.current, chunks, document.chunkCount, section.id, onLocationChange); });
+      frame = requestAnimationFrame(() => { emitSectionLocation(rootRef.current, readerChunks(chunks), document.chunkCount, section.id, onLocationChange); });
     };
     window.addEventListener("scroll", observe, { passive: true });
     observe();
@@ -89,15 +94,45 @@ export function SectionReader({ document, focusTarget, onFatalError, onLocationC
   const canMoveForward = sectionWindow.end < section.endChunkOrdinalInclusive;
   const loading = chunks === undefined;
   return <section aria-busy={loading} className="section-reader" data-target-block-id={targetBlockId ?? ""} data-testid="section-reader" ref={rootRef}>
-    {loading ? <p className="reader__notice" role="status">{appCopy.reader.loadingWindow}</p> : chunks.map((chunk) => <div className="reader-chunk" data-reader-ordinal={chunk.ordinal} key={chunk.ordinal}>
-      {chunk.renderState === "safe-fallback" ? <p className="reader-chunk__local-status" role="note">{appCopy.reader.safeFallback}</p> : null}
-      <SafeHtmlChunk anchors={chunk.anchors} html={chunk.html} ordinal={chunk.ordinal} />
+    {loading ? <p className="reader__notice" role="status">{appCopy.reader.loadingWindow}</p> : chunks.map((entry) => <div className="reader-chunk" data-reader-ordinal={entry.kind === "chunk" ? entry.chunk.ordinal : entry.ordinal} key={entry.kind === "chunk" ? entry.chunk.ordinal : entry.ordinal}>
+      {entry.kind === "error" ? <SectionChunkError code={entry.code} onRetry={() => { setChunks(undefined); setRequestAttempt((attempt) => attempt + 1); }} ordinal={entry.ordinal} /> : null}
+      {entry.kind === "chunk" ? <>
+        {entry.chunk.renderState === "safe-fallback" ? <p className="reader-chunk__local-status" role="note">{appCopy.reader.safeFallback}</p> : null}
+        <SafeHtmlChunk anchors={entry.chunk.anchors} html={entry.chunk.html} ordinal={entry.chunk.ordinal} />
+      </> : null}
     </div>)}
     {canMoveBack || canMoveForward ? <nav aria-label={readerCopy.sectionWindowNavigation} className="section-reader__window-nav">
       <button disabled={!canMoveBack || loading} onClick={() => { setChunks(undefined); setSectionWindow((current) => moveSectionWindow(section, current, "back")); }} type="button">{readerCopy.previousPart}</button>
       <button disabled={!canMoveForward || loading} onClick={() => { setChunks(undefined); setSectionWindow((current) => moveSectionWindow(section, current, "forward")); }} type="button">{readerCopy.nextPart}</button>
     </nav> : null}
   </section>;
+}
+
+export async function loadSectionWindow(repository: DocumentRepository, documentId: string, pipelineVersion: number, start: number, end: number): Promise<{ readonly entries: readonly SectionWindowEntry[]; readonly fatalCode?: RepositoryErrorCode }> {
+  const result = await repository.getCurrentChunkWindow({ documentId, endOrdinalInclusive: end, pipelineVersion, startOrdinal: start });
+  if (result.ok) return { entries: result.value.map((chunk) => ({ chunk, kind: "chunk" })) };
+  if (FATAL_SECTION_CODES.has(result.error.code)) return { entries: [], fatalCode: result.error.code };
+  if (start === end) return { entries: [{ code: result.error.code, kind: "error", ordinal: start }] };
+
+  const entries: SectionWindowEntry[] = [];
+  for (let ordinal = start; ordinal <= end; ordinal += 1) {
+    const item = await loadSectionWindow(repository, documentId, pipelineVersion, ordinal, ordinal);
+    if (item.fatalCode !== undefined) return { entries, fatalCode: item.fatalCode };
+    entries.push(...item.entries);
+  }
+  return { entries };
+}
+
+function readerChunks(entries: readonly SectionWindowEntry[]): readonly ReaderChunk[] {
+  return entries.flatMap((entry) => entry.kind === "chunk" ? [entry.chunk] : []);
+}
+
+function SectionChunkError({ code, onRetry, ordinal }: { readonly code: RepositoryErrorCode; readonly onRetry: () => void; readonly ordinal: number }) {
+  return <div className="reader-chunk__error" role="group">
+    <p>{appCopy.reader.chunkUnavailable}</p>
+    <p className="reader__diagnostic"><code>{code}</code></p>
+    <button onClick={onRetry} type="button">{appCopy.reader.retryChunk} {String(ordinal + 1)}</button>
+  </div>;
 }
 
 function emitSectionLocation(root: HTMLElement | null, chunks: readonly ReaderChunk[], chunkCount: number, sectionId: string, callback: (location: ObservedLocation) => void): void {

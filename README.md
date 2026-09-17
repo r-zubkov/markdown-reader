@@ -104,9 +104,9 @@ corepack pnpm test:e2e:list
 ## Текущий статус
 
 - Спецификация: `COMPLETE · QA PASSED`.
-- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 COMPLETE · P03 COMPLETE · P04 IN PROGRESS`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`, `P03-T03`, `P03-T04`, `P04-T01`, `P04-T02`.
-- Следующая разблокированная задача: `P04-T03`.
+- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 COMPLETE · P03 COMPLETE · P04 COMPLETE · P05 IN PROGRESS`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`, `P03-T03`, `P03-T04`, `P04-T01`, `P04-T02`, `P04-T03`.
+- Следующая разблокированная задача: `P05-T01`.
 
 ## Текущая структура репозитория
 
@@ -169,4 +169,4 @@ tools/
 e2e/
 ```
 
-Структура уже включает P00 spikes, P01 walking skeleton, safe import P02, полный core Reader P03 и lifecycle P04 с transactional delete и mapped replacement. Reader recovery hardening и release PWA завершаются последующими task-файлами.
+Структура уже включает P00 spikes, P01 walking skeleton, safe import P02, полный core Reader P03 и lifecycle P04 с transactional delete, mapped replacement и Reader recovery hardening. Release PWA и финальные platform-аудиты остаются в P05.

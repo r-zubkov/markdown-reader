@@ -5,6 +5,7 @@ import type { DocumentRepository, RepositoryErrorCode } from "@/application/port
 import { findSectionIndex, type ReaderPresentation } from "@/domain/reading/reader-presentation";
 import type { RestoreConfidence } from "@/domain/reading/progress-mapping";
 import { readerCopy } from "@/features/reader/copy";
+import { ImportCoordinator, type ImportUiState, type ImportWorkerFactory } from "@/features/import/import-coordinator";
 import { ReaderLocationController, type LocationPersistenceStatus } from "@/features/reader/reader-location-controller";
 import type { ObservedLocation } from "@/features/reader/reader-location-observer";
 import { loadReader, type ReaderLoadResult } from "@/features/reader/reader-loader";
@@ -19,6 +20,7 @@ interface ReaderScreenProps {
   readonly documentId: string;
   readonly repository: DocumentRepository;
   readonly hash?: string;
+  readonly workerFactory?: ImportWorkerFactory;
 }
 
 type ReaderViewState = { readonly status: "restoring" } | ReaderLoadResult;
@@ -31,7 +33,7 @@ interface NavigationTarget {
   readonly ordinal: number;
 }
 
-export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreenProps) {
+export function ReaderScreen({ documentId, repository, hash = "", workerFactory = createImportWorker }: ReaderScreenProps) {
   const [state, setState] = useState<ReaderViewState>({ status: "restoring" });
   const [requestedHash, setRequestedHash] = useState(hash);
   const [shouldFocusTarget, setShouldFocusTarget] = useState(false);
@@ -42,10 +44,20 @@ export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreen
   const [sectionIndex, setSectionIndex] = useState<number | undefined>(undefined);
   const [navigationTarget, setNavigationTarget] = useState<NavigationTarget | undefined>(undefined);
   const [restoreNotice, setRestoreNotice] = useState<Exclude<RestoreConfidence, "exact"> | undefined>(undefined);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [reprocessState, setReprocessState] = useState<ImportUiState | undefined>(undefined);
   const navigationSequenceRef = useRef(0);
   const applyingRef = useRef(false);
   const hashPropRef = useRef(hash);
   const settingsAnchorRef = useRef<ObservedLocation | undefined>(undefined);
+  const handleReprocessState = useCallback((next: ImportUiState): void => {
+    setReprocessState(next);
+    if (next.status === "succeeded" && next.documentId === documentId) setLoadAttempt((attempt) => attempt + 1);
+  }, [documentId]);
+  const reprocessCoordinator = useMemo(
+    () => new ImportCoordinator(repository, workerFactory, handleReprocessState),
+    [handleReprocessState, repository, workerFactory],
+  );
 
   const controller = useMemo(() => new ReaderLocationController({
     onPersistenceStatus: setPersistenceState,
@@ -75,7 +87,17 @@ export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreen
       }
     });
     return () => { active = false; };
-  }, [documentId, repository, requestedHash]);
+  }, [documentId, loadAttempt, repository, requestedHash]);
+
+  useEffect(() => () => { reprocessCoordinator.dispose(); }, [reprocessCoordinator]);
+
+  useEffect(() => {
+    if (state.status === "restoring" || state.status === "ready") return;
+    const frame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("[data-reader-state-heading]")?.focus();
+    });
+    return () => { window.cancelAnimationFrame(frame); };
+  }, [state.status]);
 
   useEffect(() => {
     if (hashPropRef.current === hash) return;
@@ -166,7 +188,7 @@ export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreen
     controller.observe(location);
   }, [controller]);
   const handleFatalError = useCallback((code: RepositoryErrorCode): void => {
-    setState(code === "DOCUMENT_NOT_FOUND" ? { status: "missing" } : code === "STALE_DERIVED" ? { status: "stale" } : { status: "corrupt" });
+    setState(code === "DOCUMENT_NOT_FOUND" ? { code, status: "missing" } : code === "STALE_DERIVED" ? { code, status: "stale" } : { code, status: "corrupt" });
   }, []);
   const handleTargetSettled = useCallback((): void => { setShouldFocusTarget(false); }, []);
 
@@ -198,7 +220,7 @@ export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreen
           <p className="screen__eyebrow">{appCopy.reader.eyebrow}</p>
           <h1 data-route-heading="true" id="reader-title" tabIndex={-1}>{state.document.title}</h1>
           <ReaderProgress ratio={progressRatio} />
-          <TableOfContents activeId={activeHeadingId(state, observedLocation)} outline={state.document.outline} onSelect={selectHeading} />
+          {state.document.outline.length === 0 ? <p className="reader__notice" role="note">{readerCopy.noHeadings}</p> : <TableOfContents activeId={activeHeadingId(state, observedLocation)} outline={state.document.outline} onSelect={selectHeading} />}
           {state.hashResolution.kind === "invalid" ? <ReaderNotice text={appCopy.reader.invalidHeading} /> : null}
           <RestoreStatus confidence={restoreNotice} onContinue={() => { setRestoreNotice(undefined); }} onStart={startAtBeginning} />
           <div className="reader__controls"><ReadingSettings applying={settingsState === "applying"} layouts={state.document.layouts} onModeChange={(mode) => { void applyPresentation({ mode }); }} onOpenChange={(open) => { if (open) settingsAnchorRef.current = controller.getCurrentLocation() ?? observedLocation; }} onStrategyChange={(splitStrategy) => { void applyPresentation({ splitStrategy }); }} presentation={presentation} />{settingsState === "failed" ? <ReaderNotice text={readerCopy.settingsFailed} /> : null}</div>
@@ -239,10 +261,10 @@ export function ReaderScreen({ documentId, repository, hash = "" }: ReaderScreen
           {persistenceState === "failed" ? <ReaderNotice text={readerCopy.persistenceFailed} /> : null}
         </>;
       })()}</> : null}
-      {state.status === "empty" ? <ReaderNotice text={appCopy.reader.emptyDocument} /> : null}
-      {state.status === "missing" ? <ReaderRecovery text={appCopy.reader.missingDocument} /> : null}
-      {state.status === "stale" ? <ReaderRecovery text={appCopy.reader.staleDocument} /> : null}
-      {state.status === "corrupt" ? <ReaderRecovery text={appCopy.reader.corruptDocument} /> : null}
+      {state.status === "empty" ? <ReaderRecovery code="EMPTY_DOCUMENT" text={appCopy.reader.emptyDocument} /> : null}
+      {state.status === "missing" ? <ReaderRecovery code={state.code} text={appCopy.reader.missingDocument} /> : null}
+      {state.status === "stale" ? <ReaderRecovery code={state.code} onReprocess={() => { void reprocessCoordinator.rebuild(documentId); }} {...(reprocessState === undefined ? {} : { reprocessState })} text={appCopy.reader.staleDocument} /> : null}
+      {state.status === "corrupt" ? <ReaderRecovery code={state.code} text={appCopy.reader.corruptDocument} /> : null}
     </article>
   </main>;
 }
@@ -266,8 +288,30 @@ function ReaderProgress({ ratio }: { readonly ratio: number }) {
 }
 
 function ReaderNotice({ text }: { readonly text: string }) { return <p className="reader__notice" role="status">{text}</p>; }
-function ReaderRecovery({ text }: { readonly text: string }) { return <section aria-labelledby="reader-title" className="reader__recovery"><h1 data-route-heading="true" id="reader-title" tabIndex={-1}>{appCopy.reader.title}</h1><p>{text}</p><Link className="screen__link" to="/">{appCopy.navigation.backToLibrary}</Link></section>; }
+export function ReaderRecovery({ code, onReprocess, reprocessState, text }: {
+  readonly code: string;
+  readonly onReprocess?: () => void;
+  readonly reprocessState?: ImportUiState;
+  readonly text: string;
+}) {
+  const running = reprocessState?.status === "validating" || reprocessState?.status === "running" || reprocessState?.status === "finalizing";
+  const failed = reprocessState?.status === "failed";
+  const showRetry = code !== "EMPTY_DOCUMENT";
+  return <section aria-labelledby="reader-title" className="reader__recovery">
+    <h1 data-reader-state-heading="true" data-route-heading="true" id="reader-title" tabIndex={-1}>{appCopy.reader.title}</h1>
+    <p>{text}</p>
+    <p className="reader__diagnostic"><span>{readerCopy.diagnosticCode}</span> <code>{code}</code></p>
+    {onReprocess === undefined ? null : <>
+      {running ? <p aria-live="polite" role="status">{readerCopy.reprocessing}</p> : null}
+      {failed ? <p className="reader__reprocess-error" role="alert">{readerCopy.reprocessFailed}</p> : null}
+      <button disabled={running} onClick={onReprocess} type="button">{failed ? readerCopy.retryReprocess : readerCopy.reprocess}</button>
+    </>}
+    <div className="reader__recovery-actions">{showRetry ? <button onClick={() => { window.location.reload(); }} type="button">{readerCopy.retryOpen}</button> : null}<Link className="screen__link" to="/">{appCopy.navigation.backToLibrary}</Link><Link className="screen__link" to="/">{appCopy.library.import}</Link></div>
+  </section>;
+}
 function currentTimestamp(): number { return Date.now(); }
+
+function createImportWorker() { return new Worker(new URL("../../workers/import-worker.ts", import.meta.url), { type: "module" }); }
 
 function activeHeadingId(state: Extract<ReaderLoadResult, { readonly status: "ready" }>, observed: ObservedLocation | undefined): string | undefined {
   if (observed === undefined) return state.hashResolution.kind === "valid" ? state.hashResolution.heading.id : undefined;

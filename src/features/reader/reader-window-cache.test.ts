@@ -12,6 +12,7 @@ import type {
 } from "@/application/ports/document-repository";
 import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
 import { ReaderWindowCache } from "@/features/reader/reader-window-cache";
+import { loadSectionWindow } from "@/features/reader/SectionReader";
 
 describe("ReaderWindowCache", () => {
   it("keeps production range reads bounded and retains a protected focus ordinal", async () => {
@@ -38,6 +39,17 @@ describe("ReaderWindowCache", () => {
     expect(cache.peek(4)).toMatchObject({ kind: "chunk" });
     expect(cache.peek(5)).toEqual({ code: "INVALID_PERSISTED_RECORD", kind: "error" });
     expect(cache.peek(6)).toMatchObject({ kind: "chunk" });
+  });
+
+  it("keeps valid section chunks readable when one persisted chunk is corrupt", async () => {
+    const result = await loadSectionWindow(new CacheRepository(5), "document", PIPELINE_VERSION, 4, 6);
+
+    expect(result.fatalCode).toBeUndefined();
+    expect(result.entries).toMatchObject([
+      { kind: "chunk", chunk: { ordinal: 4 } },
+      { code: "INVALID_PERSISTED_RECORD", kind: "error", ordinal: 5 },
+      { kind: "chunk", chunk: { ordinal: 6 } },
+    ]);
   });
 });
 

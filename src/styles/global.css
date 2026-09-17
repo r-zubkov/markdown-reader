@@ -97,6 +97,13 @@ a { color: var(--accent); }
 .reader-progress { display: grid; gap: 4px; color: var(--text-muted); font-size: .875rem; }
 .reader-progress progress, .library-item__progress progress { width: 100%; accent-color: var(--accent); }
 .reader__recovery p { color: var(--text-muted); line-height: 1.5; }
+.reader__recovery > button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--text); background: var(--surface); cursor: pointer; }
+.reader__recovery > button:disabled { cursor: wait; opacity: .65; }
+.reader__recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.reader__recovery-actions .screen__link { margin: 0; padding-inline: 12px; border-radius: 8px; }
+.reader__diagnostic { font-size: .875rem; }
+.reader__diagnostic code { overflow-wrap: anywhere; }
+.reader__reprocess-error { color: var(--danger) !important; }
 .reader__controls { display: flex; flex-wrap: wrap; align-items: start; gap: 8px; margin-block: 16px; }
 .reading-settings { max-height: min(720px, calc(100dvh - 24px)); overflow-y: auto; }
 .reading-settings fieldset { display: grid; gap: 8px; min-width: 0; margin: 0; padding: 12px 0; border: 0; border-block-start: 1px solid var(--border); }

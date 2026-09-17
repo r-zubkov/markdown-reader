@@ -29,6 +29,7 @@ function ReaderScreen() {
 }
 
 function NotFoundScreen() { return <AppFrame><main className="screen" id="main-content" tabIndex={-1}><section aria-labelledby="not-found-title" className="screen__content"><p className="screen__eyebrow">{appCopy.notFound.eyebrow}</p><h1 data-route-heading="true" id="not-found-title" tabIndex={-1}>{appCopy.notFound.title}</h1><p className="screen__description">{appCopy.notFound.description}</p><Link className="screen__link" to="/">{appCopy.navigation.toLibrary}</Link></section></main></AppFrame>; }
+function UnexpectedRouteError() { return <AppFrame><main className="screen" id="main-content" tabIndex={-1}><section aria-labelledby="route-error-title" className="screen__content"><p className="screen__eyebrow">{appCopy.routeError.eyebrow}</p><h1 data-route-heading="true" id="route-error-title" tabIndex={-1}>{appCopy.routeError.title}</h1><p className="screen__description">{appCopy.routeError.description}</p><p className="reader__diagnostic"><span>{appCopy.routeError.diagnosticLabel}</span> <code>UNEXPECTED_ROUTE_ERROR</code></p><div className="reader__recovery-actions"><button onClick={() => { window.location.reload(); }} type="button">{appCopy.routeError.retry}</button><Link className="screen__link" to="/">{appCopy.navigation.toLibrary}</Link></div></section></main></AppFrame>; }
 
 function RouteFocusManager() {
   const location = useLocation(); const previousPath = useRef<string | undefined>(undefined);
@@ -42,5 +43,5 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBounda
   public override state: AppErrorBoundaryState = { hasError: false };
   public static getDerivedStateFromError(): AppErrorBoundaryState { return { hasError: true }; }
   public override componentDidCatch() { /* Never expose content or stack details. */ }
-  public override render() { return this.state.hasError ? <NotFoundScreen /> : this.props.children; }
+  public override render() { return this.state.hasError ? <UnexpectedRouteError /> : this.props.children; }
 }

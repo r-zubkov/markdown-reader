@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { describe, expect, it, vi } from "vitest";
 
-import { RestoreStatus } from "@/features/reader/ReaderScreen";
+import { ReaderRecovery, RestoreStatus } from "@/features/reader/ReaderScreen";
 
 describe("RestoreStatus", () => {
   it("keeps exact restore silent and offers both approximate actions once", () => {
@@ -20,5 +21,17 @@ describe("RestoreStatus", () => {
     render(<RestoreStatus confidence="none" onContinue={vi.fn()} onStart={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Продолжить отсюда" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Начать сначала" })).toBeInTheDocument();
+  });
+
+  it("keeps recovery diagnostics safe and exposes reprocess without auto-focus banners", () => {
+    const reprocess = vi.fn();
+    render(<MemoryRouter><ReaderRecovery code="STALE_DERIVED" onReprocess={reprocess} text="Safe recovery" /></MemoryRouter>);
+
+    expect(screen.getByRole("heading")).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByText("STALE_DERIVED")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Подготовить документ заново" })).not.toHaveFocus();
+    fireEvent.click(screen.getByRole("button", { name: "Подготовить документ заново" }));
+    expect(reprocess).toHaveBeenCalledOnce();
+    expect(screen.getByRole("link", { name: "К библиотеке" })).toHaveAttribute("href", "/");
   });
 });
