@@ -6,7 +6,7 @@ import { MobilePlatformSpike } from "@/features/mobile-platform-spike/MobilePlat
 import { ReaderScreen as ReaderContent, ReaderToolbar } from "@/features/reader/ReaderScreen";
 import { VirtualReaderSpikeFromLocation } from "@/features/reader-spike/VirtualReaderSpike";
 import { appCopy } from "@/shared/i18n/ru";
-import { ThemeProvider, ThemeToggle } from "@/ui/theme/ThemeProvider";
+import { ThemePreferenceSelect, ThemeProvider, ThemeToggle } from "@/ui/theme/ThemeProvider";
 
 export function App() {
   const repository = getDocumentRepository();
@@ -19,7 +19,7 @@ function AppFrame({ children, reader = false }: { children: ReactNode; reader?: 
 }
 
 function AppHeader() {
-  return <header className="app-header"><Link className="app-header__brand" to="/">{appCopy.productName}</Link><nav aria-label={appCopy.a11y.primaryNavigation} className="app-header__nav"><Link to="/">{appCopy.navigation.library}</Link><ThemeToggle /></nav></header>;
+  return <header className="app-header"><Link className="app-header__brand" to="/">{appCopy.productName}</Link><nav aria-label={appCopy.a11y.primaryNavigation} className="app-header__nav"><Link to="/">{appCopy.navigation.library}</Link><ThemePreferenceSelect /><ThemeToggle /></nav></header>;
 }
 
 function ReaderScreen() {
