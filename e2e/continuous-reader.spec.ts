@@ -21,13 +21,22 @@ test.describe("P03-T02 production continuous reader", () => {
     await expect(page.locator("#mdr-h-section-110-1")).toBeVisible();
     await expect(page.getByText("MIDDLE_READER_MARKER")).toBeVisible();
     await expect(viewport).toHaveAttribute("aria-busy", "false");
-    const beforeThemeTop = await page.locator("#mdr-h-section-110-1").evaluate((element) => element.getBoundingClientRect().top);
+    const themeFocusTarget = page.locator("#mdr-h-section-110-1");
+    await themeFocusTarget.evaluate((element: HTMLElement) => {
+      element.tabIndex = -1;
+      element.focus({ preventScroll: true });
+    });
+    await expect(themeFocusTarget).toBeFocused();
+    const beforeThemeTop = await themeFocusTarget.evaluate((element) => element.getBoundingClientRect().top);
     await page.getByRole("button", { name: "Выбрать тему" }).evaluate((button: HTMLButtonElement) => { button.click(); });
     await expect(viewport).toHaveAttribute("data-remeasuring", "true");
     await expect(viewport).toHaveAttribute("data-remeasuring", "false");
-    const afterThemeTop = await page.locator("#mdr-h-section-110-1").evaluate((element) => element.getBoundingClientRect().top);
+    await expect(themeFocusTarget).toBeFocused();
+    await expect.poll(async () => Math.abs(
+      await themeFocusTarget.evaluate((element) => element.getBoundingClientRect().top) - beforeThemeTop,
+    )).toBeLessThanOrEqual(96);
+    const afterThemeTop = await themeFocusTarget.evaluate((element) => element.getBoundingClientRect().top);
     const themeDriftPx = Math.abs(afterThemeTop - beforeThemeTop);
-    expect(themeDriftPx).toBeLessThanOrEqual(96);
     await page.getByRole("link", { name: "Section 220", exact: true }).first().click();
     await expect(page.locator("#mdr-h-section-220-1")).toBeVisible();
     await expect(page.getByText("LAST_READER_MARKER")).toBeVisible();
@@ -77,7 +86,15 @@ test.describe("P03-T02 production continuous reader", () => {
     await page.setViewportSize({ height: 390, width: 844 });
     await expect(page.getByTestId("reader-viewport")).toHaveAttribute("data-remeasuring", "true");
     await expect(page.getByTestId("reader-viewport")).toHaveAttribute("data-remeasuring", "false");
+    await expect.poll(async () => Math.abs(
+      await page.locator("#mdr-h-section-110-1").evaluate((element) => element.getBoundingClientRect().top) - beforeResizeTop,
+    )).toBeLessThanOrEqual(96);
     const afterResizeTop = await page.locator("#mdr-h-section-110-1").evaluate((element) => element.getBoundingClientRect().top);
+    console.info("P05-T01 responsive anchor measurement", JSON.stringify({
+      afterResizeTop,
+      beforeResizeTop,
+      driftPx: Math.abs(afterResizeTop - beforeResizeTop),
+    }));
     expect(Math.abs(afterResizeTop - beforeResizeTop)).toBeLessThanOrEqual(96);
   });
 

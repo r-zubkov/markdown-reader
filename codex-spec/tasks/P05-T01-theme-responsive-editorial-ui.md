@@ -50,11 +50,11 @@ System theme changes mid-read, corrupt mirror, first PWA paint, 400% zoom, long 
 
 ## Acceptance criteria
 
-- [ ] No wrong-theme flash on cold/reload production preview; preference survives and system mode follows OS.
-- [ ] Light/dark contrast/focus/syntax/status checks pass or central tokens are corrected.
-- [ ] Required widths/zoom have no page overflow/lost action; TOC/overlays transition correctly.
-- [ ] Reader anchor/focus survives theme/font/width remeasurement.
-- [ ] UI remains technical-editorial and avoids prohibited generic patterns.
+- [x] No wrong-theme flash on cold/reload production preview; preference survives and system mode follows OS.
+- [x] Light/dark contrast/focus/syntax/status checks pass or central tokens are corrected.
+- [x] Required widths/zoom have no page overflow/lost action; TOC/overlays transition correctly.
+- [x] Reader anchor/focus survives theme/font/width remeasurement.
+- [x] UI remains technical-editorial and avoids prohibited generic patterns.
 
 ## Required tests
 

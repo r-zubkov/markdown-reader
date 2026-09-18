@@ -200,21 +200,28 @@ export function VirtualReaderSpike({
   function jumpTo(index: number) {
     setPinnedIndex(null);
     virtualizer.scrollToIndex(index, { align: "start", behavior: "auto" });
-    window.requestAnimationFrame(() => {
+    let attempts = 0;
+    const settleTarget = () => {
+      attempts += 1;
       virtualizer.measure();
       virtualizer.scrollToIndex(index, { align: "start", behavior: "auto" });
-      window.requestAnimationFrame(() => {
-        const target = getChunkElement(index);
-        if (target !== null) {
-          setLastDriftPx(
-            Math.abs(
-              target.getBoundingClientRect().top -
-                VIRTUAL_READER_SPIKE_CONFIG.scrollPaddingStart,
-            ),
-          );
-        }
-      });
-    });
+      const target = getChunkElement(index);
+      if (target !== null) {
+        const drift = target.getBoundingClientRect().top - VIRTUAL_READER_SPIKE_CONFIG.scrollPaddingStart;
+        if (Math.abs(drift) > 0.5) window.scrollBy(0, drift);
+      }
+      if (attempts < 6) {
+        window.requestAnimationFrame(settleTarget);
+        return;
+      }
+      const stabilizedTarget = getChunkElement(index);
+      if (stabilizedTarget !== null) {
+        setLastDriftPx(Math.abs(
+          stabilizedTarget.getBoundingClientRect().top - VIRTUAL_READER_SPIKE_CONFIG.scrollPaddingStart,
+        ));
+      }
+    };
+    window.requestAnimationFrame(settleTarget);
   }
 
   function handleFocus(event: ReactFocusEvent<HTMLElement>) {

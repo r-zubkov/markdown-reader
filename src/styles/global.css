@@ -8,6 +8,7 @@
   --color-foreground: var(--text);
   --color-muted: var(--surface-raised);
   --color-primary: var(--accent);
+  --color-primary-hover: var(--accent-hover);
   --color-primary-foreground: var(--accent-contrast);
   --color-ring: var(--accent);
   --color-surface: var(--surface);
@@ -16,6 +17,7 @@
 
 :root {
   --accent: #315fd6;
+  --accent-hover: #284fb8;
   --accent-contrast: #ffffff;
   --app-bg: #f3f4f2;
   --app-surface: #f7f9fb;
@@ -51,6 +53,7 @@
 
 :root[data-theme="dark"] {
   --accent: #8eacff;
+  --accent-hover: #a9bfff;
   --accent-contrast: #101522;
   --app-bg: #101215;
   --app-surface: #101215;
@@ -95,7 +98,7 @@ a { color: var(--accent); }
 .app-frame { min-height: 100dvh; }
 .app-header, .reader-toolbar { display: flex; min-height: 56px; align-items: center; gap: 16px; padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right)); border-block-end: 1px solid var(--border); background: var(--surface); }
 .app-header { flex-wrap: wrap; justify-content: space-between; }
-.app-header__brand { color: var(--text); font-weight: 700; text-decoration: none; }
+.app-header__brand { display: inline-flex; min-height: 44px; align-items: center; color: var(--text); font-weight: 700; text-decoration: none; }
 .app-header__nav { display: flex; min-width: 0; align-items: center; gap: 8px; }
 .app-header__nav a, .reader-toolbar a { display: inline-flex; min-height: 44px; align-items: center; }
 .theme-preference { display: inline-flex; min-width: 0; }
@@ -249,6 +252,7 @@ a { color: var(--accent); }
 }
 
 @media (max-width: 767px) {
+  .app-header [data-slot="button"], .theme-preference select { min-height: 44px; }
   .import-overlay { position: fixed; inset: env(safe-area-inset-top) 0 0; width: 100%; max-width: none; max-height: none; height: calc(100dvh - env(safe-area-inset-top)); border-radius: 16px 16px 0 0; transform: none; }
   .import-overlay__footer { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
   .reading-settings { position: fixed; inset: env(safe-area-inset-top) 0 0; width: 100%; max-width: none; max-height: none; height: calc(100dvh - env(safe-area-inset-top)); border-radius: 16px 16px 0 0; transform: none; }

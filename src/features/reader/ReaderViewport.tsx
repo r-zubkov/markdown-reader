@@ -49,6 +49,8 @@ interface ReaderViewportProps {
 }
 
 interface PendingLayoutAnchor {
+  readonly blockId?: string;
+  readonly id?: string;
   readonly ordinal: number;
   readonly top: number;
 }
@@ -206,7 +208,12 @@ export function ReaderViewport({
       setIsJumping(false);
       onTargetSettled();
       emitObservedLocation(cache, documentSnapshot.chunkCount, onLocationChange);
-      lastLayoutAnchorRef.current = snapshotTopChunk();
+      lastLayoutAnchorRef.current = {
+        ...(targetBlockId === undefined ? {} : { blockId: targetBlockId }),
+        ...(targetId === undefined ? {} : { id: targetId }),
+        ordinal: targetOrdinal,
+        top: target.getBoundingClientRect().top,
+      };
     };
     frame = window.requestAnimationFrame(settle);
     return () => { window.cancelAnimationFrame(frame); };
@@ -222,6 +229,16 @@ export function ReaderViewport({
         const target = findTargetElement(locked.ordinal, locked.id, locked.blockId);
         if (target instanceof HTMLElement) alignTarget(target, locked.blockId === undefined ? 0 : locked.intraBlockRatio);
         else virtualizer.scrollToIndex(locked.ordinal, { align: "start", behavior: "auto" });
+        if (pendingLayoutAnchorRef.current === null) {
+          lastLayoutAnchorRef.current = target instanceof HTMLElement
+            ? {
+                ...(locked.blockId === undefined ? {} : { blockId: locked.blockId }),
+                ...(locked.id === undefined ? {} : { id: locked.id }),
+                ordinal: locked.ordinal,
+                top: target.getBoundingClientRect().top,
+              }
+            : snapshotTopLayoutAnchor();
+        }
       });
     };
     const container = listRef.current?.querySelector(".reader-viewport__size-container");
@@ -257,7 +274,7 @@ export function ReaderViewport({
       window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         emitObservedLocation(cache, documentSnapshot.chunkCount, onLocationChange);
-        lastLayoutAnchorRef.current = snapshotTopChunk();
+        lastLayoutAnchorRef.current = snapshotTopLayoutAnchor();
       });
     };
     window.addEventListener("scroll", observe, { passive: true });
@@ -270,14 +287,11 @@ export function ReaderViewport({
 
   useEffect(() => {
     const captureAnchor = () => {
-      const anchor = findTopChunkElement();
+      const anchor = snapshotTopLayoutAnchor();
       if (anchor === null) return;
-      pendingLayoutAnchorRef.current = {
-        ordinal: Number(anchor.dataset.readerVirtualOrdinal),
-        top: anchor.getBoundingClientRect().top,
-      };
+      pendingLayoutAnchorRef.current = anchor;
       setIsRemeasuring(true);
-      setPinnedOrdinal(Number(anchor.dataset.readerVirtualOrdinal));
+      setPinnedOrdinal(anchor.ordinal);
     };
     window.addEventListener("markdown-reader:before-layout-change", captureAnchor);
     return () => { window.removeEventListener("markdown-reader:before-layout-change", captureAnchor); };
@@ -292,7 +306,7 @@ export function ReaderViewport({
       let attempts = 0;
       const restore = () => {
         attempts += 1;
-        const element = getChunkElement(pending.ordinal);
+        const element = getLayoutAnchorElement(pending);
         if (element !== null) {
           const drift = element.getBoundingClientRect().top - pending.top;
           if (Math.abs(drift) > 0.5) window.scrollBy(0, drift);
@@ -328,20 +342,29 @@ export function ReaderViewport({
       window.cancelAnimationFrame(layoutFrameRef.current);
       virtualizer.measure();
       let attempts = 0;
+      let stableFrames = 0;
       const restore = () => {
         attempts += 1;
-        const element = getChunkElement(pending.ordinal);
+        const element = getLayoutAnchorElement(pending);
         if (element !== null) {
           const drift = element.getBoundingClientRect().top - pending.top;
           if (Math.abs(drift) > 0.5) window.scrollBy(0, drift);
-          if (attempts === 12) setLastDriftPx(Math.abs(element.getBoundingClientRect().top - pending.top));
+          stableFrames = Math.abs(element.getBoundingClientRect().top - pending.top) <= 0.5
+            ? stableFrames + 1
+            : 0;
+        } else {
+          stableFrames = 0;
         }
-        if (attempts < 12) {
+        if (attempts < 60 && stableFrames < 6) {
           layoutFrameRef.current = window.requestAnimationFrame(restore);
           return;
         }
+        const stabilizedElement = getLayoutAnchorElement(pending);
+        if (stabilizedElement !== null) {
+          setLastDriftPx(Math.abs(stabilizedElement.getBoundingClientRect().top - pending.top));
+        }
         pendingLayoutAnchorRef.current = null;
-        lastLayoutAnchorRef.current = snapshotTopChunk();
+        lastLayoutAnchorRef.current = snapshotTopLayoutAnchor();
         setPinnedOrdinal(null);
         setIsRemeasuring(false);
       };
@@ -456,12 +479,40 @@ function findTopChunkElement(): HTMLElement | null {
     .sort((left, right) => left.rect.top - right.rect.top)[0]?.element ?? null;
 }
 
-function snapshotTopChunk(): PendingLayoutAnchor | null {
-  const element = findTopChunkElement();
-  if (element === null) return null;
-  const ordinal = Number(element.dataset.readerVirtualOrdinal);
+function snapshotTopLayoutAnchor(): PendingLayoutAnchor | null {
+  const meaningfulBlock = findTopMeaningfulBlockElement();
+  const chunk = meaningfulBlock?.closest<HTMLElement>("[data-reader-virtual-ordinal]") ?? findTopChunkElement();
+  if (chunk === null) return null;
+  const ordinal = Number(chunk.dataset.readerVirtualOrdinal);
   if (!Number.isInteger(ordinal)) return null;
-  return { ordinal, top: element.getBoundingClientRect().top };
+  const element = meaningfulBlock ?? chunk;
+  const blockId = meaningfulBlock?.dataset.readerBlockId;
+  return {
+    ...(blockId === undefined ? {} : { blockId }),
+    ordinal,
+    top: element.getBoundingClientRect().top,
+  };
+}
+
+function findTopMeaningfulBlockElement(): HTMLElement | null {
+  const line = READER_LOCATION_LINE_PX;
+  return [...document.querySelectorAll<HTMLElement>("[data-reader-block-id]")]
+    .map((element) => ({ element, rect: element.getBoundingClientRect() }))
+    .filter(({ rect }) => rect.bottom > line)
+    .sort((left, right) => left.rect.top - right.rect.top)[0]?.element ?? null;
+}
+
+function getLayoutAnchorElement(anchor: PendingLayoutAnchor): HTMLElement | null {
+  if (anchor.id !== undefined) {
+    const target = document.getElementById(anchor.id);
+    if (target !== null) return target;
+  }
+  if (anchor.blockId !== undefined) {
+    const block = [...document.querySelectorAll<HTMLElement>("[data-reader-block-id]")]
+      .find((element) => element.dataset.readerBlockId === anchor.blockId);
+    if (block !== undefined) return block;
+  }
+  return getChunkElement(anchor.ordinal);
 }
 
 function emitObservedLocation(

@@ -11,7 +11,7 @@ const buttonBase =
   "inline-flex min-h-11 shrink-0 items-center justify-center rounded-lg border px-3 text-sm font-medium outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-60";
 
 const buttonVariants = {
-  default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/85",
+  default: "border-transparent bg-primary text-primary-foreground hover:bg-primary-hover",
   outline: "border-border bg-surface text-foreground hover:bg-surface-raised",
   secondary: "border-transparent bg-surface-raised text-foreground hover:bg-muted",
   ghost: "border-transparent bg-transparent text-foreground hover:bg-surface-raised",
