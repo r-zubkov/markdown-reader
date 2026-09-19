@@ -6,6 +6,7 @@ import { findSectionIndex, type ReaderPresentation } from "@/domain/reading/read
 import type { RestoreConfidence } from "@/domain/reading/progress-mapping";
 import { readerCopy } from "@/features/reader/copy";
 import { ImportCoordinator, type ImportUiState, type ImportWorkerFactory } from "@/features/import/import-coordinator";
+import { useReaderProgressFlusher } from "@/features/platform-status/PlatformStatusProvider";
 import { ReaderLocationController, type LocationPersistenceStatus } from "@/features/reader/reader-location-controller";
 import type { ObservedLocation } from "@/features/reader/reader-location-observer";
 import { loadReader, type ReaderLoadResult } from "@/features/reader/reader-loader";
@@ -70,6 +71,8 @@ export function ReaderScreen({ documentId, repository, hash = "", workerFactory 
       updatedAt,
     }),
   }), [documentId, repository]);
+  const flushReaderProgress = useCallback(() => controller.flush(), [controller]);
+  useReaderProgressFlusher(flushReaderProgress);
 
   useEffect(() => {
     let active = true;

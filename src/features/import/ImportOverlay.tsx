@@ -6,6 +6,7 @@ import { importCopy } from "./copy";
 import type { ImportErrorCode, ImportHandle, ImportUiState, ImportWorkerFactory } from "./import-coordinator";
 import { ImportCoordinator } from "./import-coordinator";
 import type { DocumentRepository, ImportIdentityMatch } from "@/application/ports/document-repository";
+import { useImportLifecycleActivity } from "@/features/platform-status/PlatformStatusProvider";
 import { Button } from "@/ui/primitives/button";
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/primitives/dialog";
 import { FileDropField } from "@/ui/primitives/file-drop-field";
@@ -31,6 +32,7 @@ export function ImportOverlay({ isOpen, onOpenChange, repository, replacementTar
   const handleRef = useRef<ImportHandle | undefined>(undefined);
 
   coordinatorRef.current ??= new ImportCoordinator(repository, workerFactory, (next) => { dispatch(fromCoordinator(next)); });
+  useImportLifecycleActivity(hasActiveImport(state));
 
   useEffect(() => () => { coordinatorRef.current?.dispose(); }, []);
 
@@ -183,6 +185,10 @@ function ImportFailure({ error, retry }: { readonly error: "MULTIPLE_FILES" | Im
 
 function isBusy(state: ImportControllerVisibleState): boolean {
   return state.status === "validating" || state.status === "running" || state.status === "cancelling" || state.status === "finalizing";
+}
+
+function hasActiveImport(state: ImportControllerVisibleState): boolean {
+  return isBusy(state) || state.status === "decision";
 }
 
 function fromCoordinator(state: ImportUiState): ImportControllerEvent {

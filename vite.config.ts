@@ -9,17 +9,30 @@ export default defineConfig(({ mode }) => ({
     react(),
     tailwindcss(),
     VitePWA({
-      injectRegister: "auto",
+      injectRegister: false,
       manifest: {
+        id: "./",
         name: "Markdown Reader",
         short_name: "Markdown Reader",
         display: "standalone",
         lang: "ru",
-        start_url: "/",
+        scope: "./",
+        start_url: "./",
         theme_color: "#101215",
         background_color: "#101215",
+        icons: [
+          { src: "icons/markdown-reader.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
+          { src: "icons/markdown-reader-maskable.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
+        ],
       },
       registerType: "prompt",
+      workbox: {
+        cleanupOutdatedCaches: true,
+        globPatterns: ["**/*.{css,html,js}"],
+        navigateFallback: "index.html",
+        navigateFallbackDenylist: [/^\/_/u, /\/[^/?]+\.[^/]+$/u],
+        runtimeCaching: [],
+      },
     }),
   ],
   resolve: {

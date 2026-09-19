@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Route, Routes, useLocation, useParams } from "reac
 import { getDocumentRepository, initializeRepository } from "@/app/app-services";
 import { LibraryScreen } from "@/features/library/LibraryScreen";
 import { MobilePlatformSpike } from "@/features/mobile-platform-spike/MobilePlatformSpike";
+import { PlatformStatusProvider } from "@/features/platform-status/PlatformStatusProvider";
 import { ReaderScreen as ReaderContent, ReaderToolbar } from "@/features/reader/ReaderScreen";
 import { VirtualReaderSpikeFromLocation } from "@/features/reader-spike/VirtualReaderSpike";
 import { appCopy } from "@/shared/i18n/ru";
@@ -11,7 +12,7 @@ import { ThemePreferenceSelect, ThemeProvider, ThemeToggle } from "@/ui/theme/Th
 export function App() {
   const repository = getDocumentRepository();
   useEffect(() => { void initializeRepository(); }, []);
-  return <ThemeProvider preferenceStore={repository}><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<AppFrame><LibraryScreen repository={repository} /></AppFrame>} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" />{import.meta.env.DEV ? <><Route element={<MobilePlatformSpike />} path="/spikes/mobile-platform" /><Route element={<VirtualReaderSpikeFromLocation />} path="/spikes/virtual-reader" /></> : null}<Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary><GlobalStatusRegion /></BrowserRouter></ThemeProvider>;
+  return <ThemeProvider preferenceStore={repository}><PlatformStatusProvider><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<AppFrame><LibraryScreen repository={repository} /></AppFrame>} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" />{import.meta.env.DEV ? <><Route element={<MobilePlatformSpike />} path="/spikes/mobile-platform" /><Route element={<VirtualReaderSpikeFromLocation />} path="/spikes/virtual-reader" /></> : null}<Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary></BrowserRouter></PlatformStatusProvider></ThemeProvider>;
 }
 
 function AppFrame({ children, reader = false }: { children: ReactNode; reader?: boolean }) {
@@ -37,7 +38,6 @@ function RouteFocusManager() {
   return null;
 }
 
-function GlobalStatusRegion() { return <div aria-atomic="true" aria-live="polite" className="global-status" role="status" />; }
 interface AppErrorBoundaryState { hasError: boolean }
 class AppErrorBoundary extends Component<{ children: ReactNode }, AppErrorBoundaryState> {
   public override state: AppErrorBoundaryState = { hasError: false };

@@ -81,8 +81,11 @@ corepack pnpm test
 corepack pnpm test:security
 corepack pnpm test:bench
 corepack pnpm exec vitest run src/infrastructure/db/storage-atomicity-spike.test.ts --reporter verbose
-PLAYWRIGHT_BROWSERS_PATH=.ms-playwright corepack pnpm exec playwright test e2e/storage-atomicity.spec.ts --project=chromium
+$env:PLAYWRIGHT_BROWSERS_PATH = ".ms-playwright"
+corepack pnpm exec playwright test e2e/storage-atomicity.spec.ts --project=chromium
 corepack pnpm build
+corepack pnpm preview
+corepack pnpm test:e2e:pwa
 corepack pnpm test:e2e:list
 ```
 
@@ -105,8 +108,8 @@ corepack pnpm test:e2e:list
 
 - Спецификация: `COMPLETE · QA PASSED`.
 - Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 COMPLETE · P03 COMPLETE · P04 COMPLETE · P05 IN PROGRESS`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`, `P03-T03`, `P03-T04`, `P04-T01`, `P04-T02`, `P04-T03`, `P05-T01`.
-- Следующая разблокированная задача: `P05-T02`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`, `P03-T03`, `P03-T04`, `P04-T01`, `P04-T02`, `P04-T03`, `P05-T01`, `P05-T02`.
+- Следующая разблокированная задача: `P05-T03`.
 
 ## Текущая структура репозитория
 

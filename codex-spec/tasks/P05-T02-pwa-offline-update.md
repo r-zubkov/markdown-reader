@@ -50,11 +50,11 @@ Update during import/finalize, old/new tabs, offline update click, nested base p
 
 ## Acceptance criteria
 
-- [ ] After online production load, reload/direct local route works offline and opens ready Document.
-- [ ] Cache Storage contains app assets only; source/chunks remain IDB.
-- [ ] Update requires user action, waits for active import, flushes progress and reloads once.
-- [ ] Failure/offline keeps current version usable; no loop/silent reload.
-- [ ] Production Chromium PWA and offline-shell checks pass.
+- [x] After online production load, reload/direct local route works offline and opens ready Document.
+- [x] Cache Storage contains app assets only; source/chunks remain IDB.
+- [x] Update requires user action, waits for active import, flushes progress and reloads once.
+- [x] Failure/offline keeps current version usable; no loop/silent reload.
+- [x] Production Chromium PWA and offline-shell checks pass.
 
 ## Required tests
 
