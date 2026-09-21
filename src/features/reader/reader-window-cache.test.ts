@@ -83,6 +83,7 @@ class CacheRepository implements DocumentRepository {
   public dismissReaderRestoreNotice(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public getPreferences(): Promise<RepositoryResult<AppPreferencesSnapshot>> { return Promise.resolve(ok({ desktopTocCollapsed: false, remoteImagesEnabled: true, theme: "system", updatedAt: 0 })); }
   public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public saveRemoteImagesEnabled(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
 }
 
 function createCache(repository: DocumentRepository): ReaderWindowCache {

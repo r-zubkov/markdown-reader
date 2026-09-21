@@ -3,7 +3,7 @@ import { BrowserRouter, Link, Route, Routes, useLocation, useParams } from "reac
 import { getDocumentRepository, initializeRepository } from "@/app/app-services";
 import { LibraryScreen } from "@/features/library/LibraryScreen";
 import { MobilePlatformSpike } from "@/features/mobile-platform-spike/MobilePlatformSpike";
-import { PlatformStatusProvider } from "@/features/platform-status/PlatformStatusProvider";
+import { PlatformStatusProvider, RemoteImagesToggle } from "@/features/platform-status/PlatformStatusProvider";
 import { ReaderScreen as ReaderContent, ReaderToolbar } from "@/features/reader/ReaderScreen";
 import { VirtualReaderSpikeFromLocation } from "@/features/reader-spike/VirtualReaderSpike";
 import { appCopy } from "@/shared/i18n/ru";
@@ -12,7 +12,7 @@ import { ThemePreferenceSelect, ThemeProvider, ThemeToggle } from "@/ui/theme/Th
 export function App() {
   const repository = getDocumentRepository();
   useEffect(() => { void initializeRepository(); }, []);
-  return <ThemeProvider preferenceStore={repository}><PlatformStatusProvider><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<AppFrame><LibraryScreen repository={repository} /></AppFrame>} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" />{import.meta.env.DEV ? <><Route element={<MobilePlatformSpike />} path="/spikes/mobile-platform" /><Route element={<VirtualReaderSpikeFromLocation />} path="/spikes/virtual-reader" /></> : null}<Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary></BrowserRouter></PlatformStatusProvider></ThemeProvider>;
+  return <ThemeProvider preferenceStore={repository}><PlatformStatusProvider preferenceStore={repository}><BrowserRouter><AppErrorBoundary><RouteFocusManager /><Routes><Route element={<AppFrame><LibraryScreen repository={repository} /></AppFrame>} path="/" /><Route element={<ReaderScreen />} path="/documents/:documentId" />{import.meta.env.DEV ? <><Route element={<MobilePlatformSpike />} path="/spikes/mobile-platform" /><Route element={<VirtualReaderSpikeFromLocation />} path="/spikes/virtual-reader" /></> : null}<Route element={<NotFoundScreen />} path="*" /></Routes></AppErrorBoundary></BrowserRouter></PlatformStatusProvider></ThemeProvider>;
 }
 
 function AppFrame({ children, reader = false }: { children: ReactNode; reader?: boolean }) {
@@ -20,7 +20,7 @@ function AppFrame({ children, reader = false }: { children: ReactNode; reader?: 
 }
 
 function AppHeader() {
-  return <header className="app-header"><Link className="app-header__brand" to="/">{appCopy.productName}</Link><nav aria-label={appCopy.a11y.primaryNavigation} className="app-header__nav"><Link to="/">{appCopy.navigation.library}</Link><ThemePreferenceSelect /><ThemeToggle /></nav></header>;
+  return <header className="app-header"><Link className="app-header__brand" to="/">{appCopy.productName}</Link><nav aria-label={appCopy.a11y.primaryNavigation} className="app-header__nav"><Link to="/">{appCopy.navigation.library}</Link><RemoteImagesToggle /><ThemePreferenceSelect /><ThemeToggle /></nav></header>;
 }
 
 function ReaderScreen() {

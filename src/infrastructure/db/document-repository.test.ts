@@ -123,6 +123,8 @@ describe("DexieDocumentRepository", () => {
     expect(await repository.getPreferences()).toMatchObject({ ok: true, value: { theme: "system" } });
     expect(await repository.saveTheme("dark", 42)).toEqual({ ok: true, value: undefined });
     expect(await repository.getPreferences()).toMatchObject({ ok: true, value: { theme: "dark", updatedAt: 42 } });
+    expect(await repository.saveRemoteImagesEnabled(false, 43)).toEqual({ ok: true, value: undefined });
+    expect(await repository.getPreferences()).toMatchObject({ ok: true, value: { remoteImagesEnabled: false, theme: "dark", updatedAt: 43 } });
     repository.close();
   });
 

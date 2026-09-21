@@ -950,6 +950,30 @@ export class StorageAtomicitySpikeRepository {
     }
   }
 
+  public async saveRemoteImagesEnabled(
+    remoteImagesEnabled: boolean,
+    updatedAt: number,
+  ): Promise<StorageSpikeResult<void>> {
+    try {
+      if (!isSafeNonNegativeInteger(updatedAt)) {
+        throwStorageError("INVALID_VERSION_METADATA", "Preference update time is invalid.");
+      }
+      await this.database.transaction("rw", this.preferences, async () => {
+        const current = await this.preferences.get("app");
+        await this.preferences.put({
+          desktopTocCollapsed: current?.desktopTocCollapsed ?? false,
+          key: "app",
+          remoteImagesEnabled,
+          theme: current?.theme ?? "system",
+          updatedAt,
+        });
+      });
+      return succeeded(undefined);
+    } catch (error) {
+      return failed(mapStorageError(error));
+    }
+  }
+
   private get documents(): Table<StorageDocumentRecord, string> {
     return this.database.table<StorageDocumentRecord, string>("documents");
   }

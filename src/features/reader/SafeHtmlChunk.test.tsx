@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ReaderChunk } from "@/application/ports/document-repository";
 import { PIPELINE_VERSION } from "@/domain/content/pipeline-limits";
-import { SafeHtmlChunk } from "@/ui/primitives/SafeHtmlChunk";
+import { applyMediaPolicy, SafeHtmlChunk } from "@/ui/primitives/SafeHtmlChunk";
 
 class ResizeObserverStub {
   public disconnect(): void { return undefined; }
@@ -30,5 +30,18 @@ describe("SafeHtmlChunk", () => {
     expect(screen.getByText("Readable text")).toBeVisible();
     expect(await screen.findByText(/Изображение не загрузилось/u)).toBeVisible();
     expect(image).not.toBeVisible();
+  });
+
+  it("removes remote image sources before insertion when privacy is off or the browser is offline", () => {
+    const source = '<p>Readable text</p><img alt="Diagram" src="https://example.invalid/image.png"><img src="images/local.png">';
+    const blocked = applyMediaPolicy(source, { enabled: false, online: true });
+    expect(blocked).toContain("Readable text");
+    expect(blocked).not.toContain("https://example.invalid/image.png");
+    expect(blocked).not.toContain('src="images/local.png"');
+    expect(blocked).toContain("reader-content__media-placeholder");
+
+    const allowed = applyMediaPolicy(source, { enabled: true, online: true });
+    expect(allowed).toContain('src="https://example.invalid/image.png"');
+    expect(allowed).toContain('referrerpolicy="no-referrer"');
   });
 });

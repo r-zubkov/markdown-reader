@@ -42,6 +42,7 @@ class ReaderRepository implements DocumentRepository {
   public dismissReaderRestoreNotice(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
   public getPreferences(): Promise<RepositoryResult<{ readonly theme: "system"; readonly remoteImagesEnabled: true; readonly desktopTocCollapsed: false; readonly updatedAt: 0 }>> { return Promise.resolve(ok({ desktopTocCollapsed: false, remoteImagesEnabled: true, theme: "system", updatedAt: 0 })); }
   public saveTheme(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
+  public saveRemoteImagesEnabled(): Promise<RepositoryResult<void>> { return Promise.resolve(ok(undefined)); }
 }
 
 function ok<T>(value: T): RepositoryResult<T> { return { ok: true, value }; }

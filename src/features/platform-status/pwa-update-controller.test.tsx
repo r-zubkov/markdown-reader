@@ -89,4 +89,12 @@ describe("PwaUpdateController", () => {
     expect(screen.getByTestId("platform-status")).toHaveAttribute("data-platform-status", "offline");
     expect(screen.getByText(/Сохранённые документы доступны/u)).toBeVisible();
   });
+
+  it("gives actionable storage risk priority over an update and offline state", () => {
+    const controller = new PwaUpdateController({ online: false, reload: vi.fn() });
+    controller.notifyUpdateAvailable(() => Promise.resolve());
+    render(<PlatformStatusBanner controller={controller} storageHealth={{ reason: "near-quota", status: "risk", usage: 90, quota: 100 }} />);
+    expect(screen.getByTestId("platform-status")).toHaveAttribute("data-platform-status", "storage-near-quota");
+    expect(screen.queryByText(/Нет подключения/u)).not.toBeInTheDocument();
+  });
 });

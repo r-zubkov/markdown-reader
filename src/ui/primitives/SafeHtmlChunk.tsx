@@ -1,7 +1,9 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ReaderBlockAnchorSnapshot, SanitizedHtml } from "@/application/ports/document-repository";
 import { markMeaningfulBlocks } from "@/features/reader/reader-location-observer";
+import { useRemoteImagesPolicy } from "@/features/platform-status/PlatformStatusProvider";
+import { platformStatusCopy } from "@/features/platform-status/copy";
 import { appCopy } from "@/shared/i18n/ru";
 
 interface SafeHtmlChunkProps {
@@ -14,11 +16,15 @@ interface SafeHtmlChunkProps {
 export const SafeHtmlChunk = memo(function SafeHtmlChunk({ anchors = [], html, ordinal }: SafeHtmlChunkProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [failedMediaCount, setFailedMediaCount] = useState(0);
+  const { enabled: remoteImagesEnabled, online } = useRemoteImagesPolicy();
+  const renderedHtml = useMemo(() => applyMediaPolicy(html.value, { enabled: remoteImagesEnabled, online }), [html.value, remoteImagesEnabled, online]);
+
+  useEffect(() => { setFailedMediaCount(0); }, [renderedHtml]);
 
   useLayoutEffect(() => {
     const content = contentRef.current;
     if (content !== null) markMeaningfulBlocks(content, anchors);
-  }, [anchors, html]);
+  }, [anchors, renderedHtml]);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -93,10 +99,37 @@ export const SafeHtmlChunk = memo(function SafeHtmlChunk({ anchors = [], html, o
       for (const observer of resizeObservers) observer.disconnect();
       for (const cleanup of cleanups) cleanup();
     };
-  }, [html]);
+  }, [renderedHtml]);
 
   return <>
-    <div className="reader-content reader-chunk__content" data-reader-ordinal={ordinal} dangerouslySetInnerHTML={{ __html: html.value }} ref={contentRef} />
+    <div className="reader-content reader-chunk__content" data-reader-ordinal={ordinal} dangerouslySetInnerHTML={{ __html: renderedHtml }} ref={contentRef} />
     {failedMediaCount > 0 ? <p className="reader-content__media-error" role="status">{navigator.onLine ? appCopy.reader.mediaError : appCopy.reader.mediaOffline}</p> : null}
   </>;
 }, (previous, next) => previous.ordinal === next.ordinal && previous.anchors === next.anchors && previous.html.pipelineVersion === next.html.pipelineVersion && previous.html.value === next.html.value);
+
+/** Runs inside the sole validated HTML boundary before the browser can fetch an image. */
+export function applyMediaPolicy(html: string, policy: { readonly enabled: boolean; readonly online: boolean }): string {
+  const parser = new DOMParser();
+  const document = parser.parseFromString(html, "text/html");
+  for (const image of document.body.querySelectorAll("img")) {
+    const source = image.getAttribute("src") ?? "";
+    const allowedDataImage = /^data:image\//iu.test(source);
+    const allowedRemoteImage = isHttpsUrl(source) && policy.enabled && policy.online;
+    if (allowedDataImage || allowedRemoteImage) {
+      image.setAttribute("loading", "lazy");
+      image.setAttribute("referrerpolicy", "no-referrer");
+      continue;
+    }
+    const placeholder = document.createElement("span");
+    placeholder.className = "reader-content__media-placeholder";
+    placeholder.setAttribute("role", "img");
+    placeholder.setAttribute("aria-label", image.alt || (isHttpsUrl(source) ? platformStatusCopy.remoteImagesBlocked : platformStatusCopy.localImageUnsupported));
+    placeholder.textContent = isHttpsUrl(source) ? platformStatusCopy.remoteImagesBlocked : platformStatusCopy.localImageUnsupported;
+    image.replaceWith(placeholder);
+  }
+  return document.body.innerHTML;
+}
+
+function isHttpsUrl(value: string): boolean {
+  try { return new URL(value).protocol === "https:"; } catch { return false; }
+}

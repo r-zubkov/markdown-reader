@@ -229,4 +229,5 @@ export interface DocumentRepository {
   }): Promise<RepositoryResult<void>>;
   getPreferences(): Promise<RepositoryResult<AppPreferencesSnapshot>>;
   saveTheme(theme: AppPreferencesSnapshot["theme"], updatedAt: number): Promise<RepositoryResult<void>>;
+  saveRemoteImagesEnabled(enabled: boolean, updatedAt: number): Promise<RepositoryResult<void>>;
 }

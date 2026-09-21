@@ -227,6 +227,11 @@ export class DexieDocumentRepository implements DocumentRepository {
     return discard(await this.storage.saveTheme(theme, updatedAt));
   }
 
+  public async saveRemoteImagesEnabled(enabled: boolean, updatedAt: number): Promise<RepositoryResult<void>> {
+    if (typeof enabled !== "boolean" || !nonNegative(updatedAt)) return failure("INVALID_PERSISTED_RECORD");
+    return discard(await this.storage.saveRemoteImagesEnabled(enabled, updatedAt));
+  }
+
   private async commitMappedReplacement(
     input: Parameters<DocumentRepository["commitVersion"]>[0] & { readonly replacementReaderState: ReaderStateSnapshot },
   ): Promise<RepositoryResult<CommitVersionResult>> {
