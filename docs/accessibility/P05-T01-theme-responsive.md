@@ -3,7 +3,7 @@
 ## Accepted implementation
 
 - The global preference remains `system | light | dark` in IndexedDB, with `localStorage` used only as the pre-paint mirror.
-- The inline bootstrap applies the mirrored theme before the React entry is allowed to load. Repository reconciliation then restores the canonical preference without overwriting a newer user selection.
+- The same-origin external bootstrap applies the mirrored theme synchronously before the React entry is allowed to load. Repository reconciliation then restores the canonical preference without overwriting a newer user selection.
 - OS color-scheme changes update an active `system` preference and dispatch the Reader layout-preservation handshake.
 - Central light/dark roles cover app, surface, reader, text, muted text, border, accent, accent hover, success, warning, danger, code, selection, elevation and named layers.
 - Markdown prose owns namespaced typography, headings, blockquotes, links, inline/fenced code, syntax roles, tables, images, task controls and local overflow.
@@ -39,5 +39,5 @@ No font files or dependencies were added. The accepted system fallbacks remain `
 ## Deviations and residual decisions
 
 - The final brand accent is still the documented replaceable neutral-blue placeholder (`OPEN-001`).
-- Physical-device and assistive-technology checks remain part of the P05-T04 release audit. Browser zoom is represented by the equivalent 320 CSS px reflow branch because browser chrome zoom controls are not exposed by the sandboxed headless Chromium runner.
+- Browser zoom is represented by the equivalent 320 CSS px reflow branch because browser chrome zoom controls are not exposed by the sandboxed headless Chromium runner. P05-T04 later closed its NVDA and real browser-zoom manual gates through explicit user-approved waivers; optional physical Android smoke remains outside the MVP release gate.
 - No architecture, storage schema, worker protocol, sanitizer contract, pipeline version or dependency changed.

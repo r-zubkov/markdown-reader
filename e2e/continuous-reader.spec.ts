@@ -69,7 +69,7 @@ test.describe("P03-T02 production continuous reader", () => {
 
   test("keeps mobile reflow local and reports a failed remote image without losing prose", async ({ page }) => {
     await page.setViewportSize({ height: 844, width: 320 });
-    await page.route("https://assets.example/reader.png", (route) => { void route.abort(); });
+    await page.route("https://assets.example/reader.png", async (route) => { await route.abort("failed"); });
     await importContinuousCorpus(page);
     await page.locator(".reader-toc__mobile button").click();
     await page.getByRole("link", { name: "Section 110", exact: true }).click();

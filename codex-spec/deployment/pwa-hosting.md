@@ -18,4 +18,9 @@ The production output is a static SPA/PWA and must be served from one stable HTT
 
 ## Security headers
 
-The deployment CSP must preserve the architecture target: `default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'`. HTTPS remote images are the only allowed third-party content requests and remain subject to the application preference/policy.
+The production artifact includes `public/_headers`, copied to `dist/_headers`, for static hosts that implement the `_headers` convention. A host with a different configuration format must translate these directives without weakening them:
+
+- CSP: `default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; style-src-attr 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; manifest-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`.
+- `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and the checked-in restrictive `Permissions-Policy` are required on application responses.
+
+The single style hash admits React Aria's fixed pressability rule. `style-src-attr 'unsafe-inline'` is limited to style attributes needed by trusted theme/virtualizer code; document HTML is separately sanitized and rejected at repository read if it contains a style attribute. Inline scripts and `unsafe-eval` remain forbidden. The pre-paint theme bootstrap is a same-origin external script. HTTPS remote images are the only allowed third-party content requests and remain subject to the application preference/policy.

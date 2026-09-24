@@ -67,6 +67,41 @@ describe("DexieDocumentRepository", () => {
     repository.close();
   });
 
+  it("rejects a current chunk whose persisted HTML no longer matches the allowlist", async () => {
+    const databaseName = `markdown-reader-repository-html-policy-${crypto.randomUUID()}`;
+    databaseNames.push(databaseName);
+    const repository = new DexieDocumentRepository(databaseName);
+    const staged = createStorageStageInput({ chunkCount: 1, versionId: crypto.randomUUID() });
+    const input = { ...staged, pipelineVersion: PIPELINE_VERSION };
+
+    await repository.stageVersion(input);
+    await repository.appendChunkBatch({
+      batchOrdinal: 0,
+      chunks: createStorageChunks(1, { pipelineVersion: PIPELINE_VERSION }),
+      jobId: input.jobId,
+      versionId: input.versionId,
+    });
+    await repository.commitVersion({ jobId: input.jobId, readyAt: input.importedAt + 1, versionId: input.versionId });
+
+    const database = createStorageAtomicitySpikeDatabase(databaseName);
+    await database.open();
+    try {
+      await database.table("chunks").update([input.versionId, 0], {
+        html: '<p data-unexpected="true">Changed derived markup</p>',
+      });
+    } finally {
+      database.close();
+    }
+
+    await expect(repository.getCurrentChunkWindow({
+      documentId: input.documentId,
+      endOrdinalInclusive: 0,
+      pipelineVersion: PIPELINE_VERSION,
+      startOrdinal: 0,
+    })).resolves.toEqual({ ok: false, error: { code: "INVALID_PERSISTED_RECORD" } });
+    repository.close();
+  });
+
   it("persists a validated semantic anchor and resolves it only for the current version", async () => {
     const repository = createRepository("reader-anchor");
     const staged = createStorageStageInput({ chunkCount: 3, versionId: crypto.randomUUID() });

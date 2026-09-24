@@ -56,7 +56,7 @@ export function ThemeProvider({ children, preferenceStore }: { children: ReactNo
 }
 function writeThemeMirror(preference: ThemePreference) { try { window.localStorage.setItem(themeMirrorKey, preference); } catch { /* Theme remains usable without localStorage. */ } }
 export function useTheme() { const value = useContext(ThemeContext); if (!value) throw new Error("useTheme must be used inside ThemeProvider."); return value; }
-export function ThemeToggle() { const { preference, setPreference } = useTheme(); const next = preference === "dark" ? "light" : "dark"; return <Button aria-label={appCopy.a11y.theme} onPress={() => { setPreference(next); }} size="sm" variant="ghost">{next === "dark" ? appCopy.theme.dark : appCopy.theme.light}</Button>; }
+export function ThemeToggle() { const { preference, setPreference } = useTheme(); const next = preference === "dark" ? "light" : "dark"; return <Button aria-label={appCopy.a11y.theme} className="theme-toggle" onPress={() => { setPreference(next); }} size="sm" variant="ghost">{next === "dark" ? appCopy.theme.dark : appCopy.theme.light}</Button>; }
 export function ThemePreferenceSelect() {
   const { preference, setPreference } = useTheme();
   return <label className="theme-preference"><span className="sr-only">{appCopy.a11y.theme}</span><select aria-label={appCopy.a11y.theme} onChange={(event) => { if (isThemePreference(event.currentTarget.value)) setPreference(event.currentTarget.value); }} value={preference}>

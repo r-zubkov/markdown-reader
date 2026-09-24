@@ -8,9 +8,7 @@
       content="Локальная browser-only читалка Markdown-файлов."
     />
     <title>Markdown Reader</title>
-    <script>
-      (() => { try { const preference = localStorage.getItem("markdown-reader.theme"); const dark = preference === "dark" || (preference !== "light" && matchMedia("(prefers-color-scheme: dark)").matches); document.documentElement.dataset.theme = dark ? "dark" : "light"; document.documentElement.style.colorScheme = dark ? "dark" : "light"; } catch {} })();
-    </script>
+    <script src="%BASE_URL%theme-bootstrap.js" vite-ignore></script>
   </head>
   <body>
     <div id="root"></div>

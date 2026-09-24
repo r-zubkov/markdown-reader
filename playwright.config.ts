@@ -10,6 +10,9 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
+  // Import/Worker scenarios are intentionally serialized so the release gate
+  // measures product behavior instead of host CPU contention.
+  workers: 1,
   use: {
     baseURL,
     trace: "on-first-retry",

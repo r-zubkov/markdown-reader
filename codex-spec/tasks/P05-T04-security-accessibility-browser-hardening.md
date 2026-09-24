@@ -51,11 +51,11 @@ Combined update+offline+quota, replace during old SW, theme/remote toggle mid-sc
 
 ## Acceptance criteria
 
-- [ ] Security/CSP/network/privacy gates pass with no unsafe injection/request/log.
-- [ ] All required automated suites/browsers/build pass without unresolved flake.
-- [ ] Performance values meet approved reports or an explicit decision/fallback is applied and retested.
-- [ ] Automated/manual accessibility/responsive/theme/device matrix passes with recorded environment.
-- [ ] No known blocking defect remains; residual issues are classified/linked.
+- [x] Security/CSP/network/privacy gates pass with no unsafe injection/request/log.
+- [x] All required automated suites/browsers/build pass without unresolved flake.
+- [x] Performance values meet approved reports or an explicit decision/fallback is applied and retested.
+- [x] Automated/manual accessibility/responsive/theme/device matrix passes with recorded environment.
+- [x] No known blocking defect remains; residual issues are classified/linked.
 
 ## Required tests
 

@@ -52,6 +52,8 @@ Minimum semantic schema supports paragraphs, `h1–h6`, emphasis/strong/delete, 
 
 Metadata contains pipeline version, content hash, byte/char length, title, outline, layouts, chunk count and warnings summary. Chunk contains source range, cost, heading IDs, block anchors, safe HTML string and render state/diagnostic. Each worker batch contains its exact aggregate UTF-8 HTML byte count; the terminal summary repeats pipeline version, hash, chunk count and batch count. Worker never sends DOM nodes.
 
+Before branding a persisted chunk for rendering, the repository parses its stored HTML in a detached template and validates tags, attributes, generated IDs, URLs, image policy and size limits against the output allowlist. This is a fail-closed integrity check, not a second transforming sanitizer. A mismatch returns `INVALID_PERSISTED_RECORD` so recovery can rebuild from `sourceBlob` without displaying the derived record.
+
 ## Error strategy
 
 - Fatal integrity/security uncertainty aborts import.

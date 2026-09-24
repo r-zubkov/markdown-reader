@@ -98,7 +98,7 @@ Cancellation: controller sends `Cancel(jobId)`, ignores later nonterminal messag
 2. Reader use case loads Document + current ready version metadata + ReaderState.
 3. Location resolver chooses explicit heading, saved anchor or document start.
 4. Repository returns layout metadata and only chunk range required by current section/virtual window.
-5. `SafeHtmlChunk` renders repository-branded values. It does not sanitize or transform.
+5. Repository validates current-version chunk HTML against the persisted-output allowlist and brands only an exact pass. `SafeHtmlChunk` renders the brand without repairing or sanitizing markup.
 6. Intersection/virtualizer callback updates an imperative `ReaderLocationController`; derived progress is throttled into ReaderState, not React state per scroll event.
 7. `pagehide`, route leave and deliberate mode change trigger final best-effort persistence without unload prompt.
 
@@ -139,7 +139,7 @@ Actual contracts live in a shared protocol module that imports no worker/DOM glo
 | Worker | `PROTOCOL_MISMATCH`, `PIPELINE_LIMIT`, `WORKER_CRASH`, `CANCELLED` | Abort staging; retry after diagnostics |
 | Content | `UNSUPPORTED_LANGUAGE`, `HIGHLIGHT_FAILED`, `OVERSIZED_NODE` | Escaped safe fallback for node; import continues when integrity is known |
 | Storage | `DB_UNAVAILABLE`, `QUOTA_EXCEEDED`, `MIGRATION_FAILED`, `COMMIT_CONFLICT` | Keep ready data; retry/free space/reimport; never auto-clear |
-| Reader | `DOCUMENT_NOT_FOUND`, `STALE_DERIVED`, `CHUNK_READ_FAILED`, `ANCHOR_NOT_FOUND` | Library/reprocess/partial placeholder/approximate fallback |
+| Reader | `DOCUMENT_NOT_FOUND`, `STALE_DERIVED`, `INVALID_PERSISTED_RECORD`, `CHUNK_READ_FAILED`, `ANCHOR_NOT_FOUND` | Library/reprocess/partial placeholder/approximate fallback |
 | Platform | `OFFLINE_RESOURCE`, `UPDATE_FAILED`, `PERSISTENCE_DENIED` | Local read continues; retry/later/explanation |
 
 Route error boundary catches unexpected React failures only. Expected domain errors use typed Result and screen states.
@@ -148,11 +148,11 @@ Route error boundary catches unexpected React failures only. Expected domain err
 
 - Untrusted: filename, bytes, decoded Markdown, AST raw HTML, heading text, language labels, URLs and existing IndexedDB content.
 - Raw HTML nodes are converted to escaped literal text. `allowDangerousHtml` is false; `rehype-raw` is not used in MVP.
-- URL policy runs before serialization; sanitizer allowlist runs after HAST transformations/highlight and before stringify. Sanitized output is rebranded only by repository when `pipelineVersion` matches.
+- URL policy runs before serialization; sanitizer allowlist runs after HAST transformations/highlight and before stringify. Because IndexedDB is also untrusted, repository read validates the stored string against the same output policy as well as record shape, ownership and `pipelineVersion`; only an exact pass is branded. Validation fails closed and never repairs or republishes markup.
 - Heading/footnote IDs are application-generated with a fixed prefix, slug + occurrence; user-provided `id/name` is discarded to prevent clobbering.
 - Links: allow `#`, `http`, `https`, `mailto`; external HTTP(S) gets `_blank`, `rel="noopener noreferrer"`. Block `javascript`, `data`, `file`, `blob` and unknown protocols.
 - Images: allow `https` when preference on and safe raster `data:image/{png,jpeg,gif,webp,avif}` under measured decoded limit; block SVG data, HTTP, file/blob and relative paths. Use `referrerpolicy="no-referrer"`, lazy/async decode.
-- CSP target: `default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self'; img-src 'self' data: https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; connect-src 'self'`. Deployment must decide whether Tailwind/generated styles require a nonce/hash change; `unsafe-eval` is forbidden.
+- CSP target: `default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; style-src-attr 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; manifest-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`. The style hash admits only React Aria's fixed pressability rule. `style-src-attr` is required for trusted theme and virtualizer layout properties; sanitized/persisted document HTML rejects every `style` attribute. Inline scripts and `unsafe-eval` remain forbidden.
 - Diagnostics include error codes/counts/sizes, never document text or full URLs containing secrets.
 
 ## Proposed source tree

@@ -40,6 +40,8 @@ The production Chromium corpus uses the real import Worker/pipeline and creates 
 
 The browser matrix also passed a direct middle restore after reload, first/middle/last TOC navigation, a disjoint focused-link pin, remote-image error localization, 320 px page-overflow checks and a 320x844 to 844x390 resize/orientation transition within the 96 px assertion tolerance. The continuous-reader scenarios passed twice sequentially during stability testing.
 
+P05-T04 repeated the same production benchmark after adding fail-closed persisted-HTML validation. The 181-chunk staging and bounded traversal completed in 210.79 ms with 96 cached entries, below the unchanged 5,000 ms regression budget. The corresponding Chromium first/middle/last run retained 16 mounted chunks, reported no blank interval and measured a 59 ms longest main-thread task against the unchanged 150 ms budget.
+
 ## Verification record
 
 - `pnpm typecheck` — passed.

@@ -71,3 +71,38 @@ test("production repository blocks stale HTML and atomically rebuilds it from th
   });
   expect(result).toEqual({ ok: true, text: "# Storage Spike\n\nfixture", currentPipeline: true });
 });
+
+test("Reader rejects changed persisted markup before it reaches the HTML boundary", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("library-import-trigger").click();
+  await page.getByTestId("import-file-input").setInputFiles({
+    name: "persisted-boundary.md",
+    mimeType: "text/markdown",
+    buffer: Buffer.from("# Persisted boundary\n\nOriginal safe paragraph."),
+  });
+  await page.locator("a.import-overlay__open").click();
+  await expect(page.getByText("Original safe paragraph.")).toBeVisible();
+
+  await page.evaluate(async () => new Promise<void>((resolve, reject) => {
+    const request = indexedDB.open("markdown-reader");
+    request.onerror = () => { reject(request.error ?? new Error("IndexedDB open failed.")); };
+    request.onsuccess = () => {
+      const database = request.result;
+      const transaction = database.transaction("chunks", "readwrite");
+      const cursorRequest = transaction.objectStore("chunks").openCursor();
+      cursorRequest.onerror = () => { reject(cursorRequest.error ?? new Error("Chunk cursor failed.")); };
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result;
+        if (cursor === null) { reject(new Error("Expected a persisted chunk.")); return; }
+        cursor.update({ ...cursor.value, html: '<p data-unexpected="true">Changed derived markup</p>' });
+      };
+      transaction.oncomplete = () => { database.close(); resolve(); };
+      transaction.onerror = () => { database.close(); reject(transaction.error ?? new Error("Chunk update failed.")); };
+    };
+  }));
+
+  await page.reload();
+  await expect(page.locator(".reader__recovery")).toBeVisible();
+  await expect(page.locator(".reader__diagnostic code")).toHaveText("INVALID_PERSISTED_RECORD");
+  await expect(page.locator("[data-unexpected]")).toHaveCount(0);
+});

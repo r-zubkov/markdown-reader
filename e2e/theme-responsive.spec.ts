@@ -45,7 +45,7 @@ test.describe("P05-T01 theme and responsive editorial UI", () => {
     await expectNoPageOverflow(page);
     await expectHeaderTargetsAtLeast44Px(page);
 
-    const violations = await new AxeBuilder({ page }).include(".app-frame").analyze();
+    const violations = await new AxeBuilder({ page }).include("#root").analyze();
     expect(violations.violations).toEqual([]);
   });
 
@@ -57,9 +57,10 @@ test.describe("P05-T01 theme and responsive editorial UI", () => {
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
       await expect(page.getByRole("combobox", { name: "Выбрать тему" })).toHaveValue(theme);
       await expect(page.getByRole("heading", { name: "Библиотека" })).toBeVisible();
-      const violations = await new AxeBuilder({ page }).include(".app-frame").analyze();
+      await page.waitForFunction(() => document.getAnimations().every((animation) => animation.playState === "finished"));
+      const violations = await new AxeBuilder({ page }).include("#root").analyze();
       expect(violations.violations).toEqual([]);
-      await expect(page.locator(".app-frame")).toHaveScreenshot(`library-${theme}.png`, { animations: "disabled" });
+      await expect(page).toHaveScreenshot(`library-${theme}.png`, { animations: "disabled" });
     });
   }
 
@@ -89,6 +90,57 @@ test.describe("P05-T01 theme and responsive editorial UI", () => {
     expect(focusAndMotion.maximumTransitionMs).toBeLessThanOrEqual(0.1);
     expect(focusAndMotion.outlineWidth).toBeGreaterThanOrEqual(2);
   });
+
+  test("keeps Reader controls, TOC and status separate across the release width matrix", async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId("library-import-trigger").click();
+    await page.getByTestId("import-file-input").setInputFiles({
+      name: "responsive-matrix.md",
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# First\n\nReadable prose.\n\n## Second\n\nMore prose.\n\n### Third\n\nFinal prose."),
+    });
+    await page.locator("a.import-overlay__open").click();
+    await expect(page.locator("#mdr-h-first-1")).toBeVisible();
+
+    for (const width of [390, 768, 1024, 1120, 1440]) {
+      await page.setViewportSize({ height: 900, width });
+      await expectNoPageOverflow(page);
+      await expect(page.locator("#mdr-h-first-1")).toBeVisible();
+      if (width >= 1120) {
+        await expect(page.locator(".reader-toc--desktop")).toBeVisible();
+        await expect(page.locator(".reader-toc__mobile")).toBeHidden();
+        const surfaces = await page.evaluate(() => {
+          const toc = document.querySelector<HTMLElement>(".reader-toc--desktop")?.getBoundingClientRect();
+          const status = document.querySelector<HTMLElement>(".platform-status")?.getBoundingClientRect();
+          return toc && status ? { statusTop: status.top, tocBottom: toc.bottom } : null;
+        });
+        expect(surfaces).not.toBeNull();
+        expect(surfaces?.tocBottom).toBeLessThanOrEqual(surfaces?.statusTop ?? 0);
+      } else {
+        await expect(page.locator(".reader-toc--desktop")).toBeHidden();
+        await expect(page.locator(".reader-toc__mobile")).toBeVisible();
+      }
+    }
+  });
+
+  test("reflows at the 400 percent equivalent width with WCAG text spacing", async ({ page }) => {
+    await page.setViewportSize({ height: 900, width: 320 });
+    await page.goto("/");
+    await page.addStyleTag({
+      content: `
+        body * {
+          line-height: 1.5 !important;
+          letter-spacing: .12em !important;
+          word-spacing: .16em !important;
+        }
+        p { margin-block-end: 2em !important; }
+      `,
+    });
+
+    await expectNoPageOverflow(page);
+    await expect(page.getByTestId("library-import-trigger")).toBeVisible();
+    await expectHeaderTargetsAtLeast44Px(page);
+  });
 });
 
 async function expectNoPageOverflow(page: Page): Promise<void> {
@@ -98,7 +150,7 @@ async function expectNoPageOverflow(page: Page): Promise<void> {
 }
 
 async function expectHeaderTargetsAtLeast44Px(page: Page): Promise<void> {
-  const targets = page.locator(".app-header a, .app-header button, .app-header select");
+  const targets = page.locator(".app-header a:visible, .app-header button:visible, .app-header select:visible");
   const boxes = await targets.evaluateAll((elements) => elements.map((element) => {
     const rect = element.getBoundingClientRect();
     return { height: rect.height, width: rect.width };

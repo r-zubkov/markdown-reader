@@ -162,7 +162,7 @@ interface AppPreferences {
 }
 ```
 
-Repository returns `SanitizedHtml` only after runtime record validation plus equality `chunk.pipelineVersion === current PIPELINE_VERSION` plus ownership by the current ready version. The only factory is private to the infrastructure boundary.
+Repository returns `SanitizedHtml` only after runtime record validation, equality `chunk.pipelineVersion === current PIPELINE_VERSION`, ownership by the current ready version and an exact persisted-HTML allowlist check. A failed HTML check returns `INVALID_PERSISTED_RECORD`; it does not repair or render the derived record. The only factory is private to the infrastructure boundary.
 
 ## Relationships
 
@@ -312,7 +312,7 @@ One transaction deletes ReaderState, all chunks for all document versions, versi
 
 - Before import, `StorageManager.estimate()` can warn but cannot guarantee commit. `QuotaExceededError` aborts staging and leaves ready data.
 - `persist()` is requested only after user context/success explanation; denial is warning, not block.
-- Record validation failure localizes to version/chunk when possible. Corrupted current derived data prompts rebuild from source; corrupted/missing source prompts reimport, never automatic clear-all.
+- Record or persisted-HTML allowlist validation failure localizes to version/chunk when possible. Corrupted current derived data prompts rebuild from source; corrupted/missing source prompts reimport, never automatic clear-all.
 - File/node/chunk/decoded data limits come from F00 spikes and live in one `PipelineLimits` config with test fixtures at/below/above each limit.
 - Browser eviction cannot be recovered in MVP; copy explicitly tells user to retain original `.md`.
 

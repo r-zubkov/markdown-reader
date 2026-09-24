@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+
 import "fake-indexeddb/auto";
 
 import { afterAll, describe, expect, it } from "vitest";

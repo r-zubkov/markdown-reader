@@ -1,6 +1,7 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ReaderBlockAnchorSnapshot, SanitizedHtml } from "@/application/ports/document-repository";
+import { PIPELINE_LIMITS } from "@/domain/content/pipeline-limits";
 import { markMeaningfulBlocks } from "@/features/reader/reader-location-observer";
 import { useRemoteImagesPolicy } from "@/features/platform-status/PlatformStatusProvider";
 import { platformStatusCopy } from "@/features/platform-status/copy";
@@ -113,7 +114,7 @@ export function applyMediaPolicy(html: string, policy: { readonly enabled: boole
   const document = parser.parseFromString(html, "text/html");
   for (const image of document.body.querySelectorAll("img")) {
     const source = image.getAttribute("src") ?? "";
-    const allowedDataImage = /^data:image\//iu.test(source);
+    const allowedDataImage = isAllowedRasterDataImage(source);
     const allowedRemoteImage = isHttpsUrl(source) && policy.enabled && policy.online;
     if (allowedDataImage || allowedRemoteImage) {
       image.setAttribute("loading", "lazy");
@@ -132,4 +133,12 @@ export function applyMediaPolicy(html: string, policy: { readonly enabled: boole
 
 function isHttpsUrl(value: string): boolean {
   try { return new URL(value).protocol === "https:"; } catch { return false; }
+}
+
+function isAllowedRasterDataImage(value: string): boolean {
+  const match = /^data:image\/(png|jpeg|gif|webp|avif);base64,([a-z0-9+/=]+)$/iu.exec(value);
+  const encoded = match?.[2];
+  if (encoded === undefined) return false;
+  const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+  return Math.floor((encoded.length * 3) / 4) - padding <= PIPELINE_LIMITS.safeDataImageBytes;
 }

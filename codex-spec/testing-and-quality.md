@@ -55,6 +55,7 @@ If a tool requires a different exact invocation, bootstrap updates this file and
 - PWA/offline/update tests use production build in isolated origin/profile and clean service-worker state.
 - Each test owns/cleans its test database; no global site-data clear command in application code.
 - Responsive Chromium coverage includes mobile-Chrome viewport, touch-target and reflow scenarios; it does not imply Safari/iOS support.
+- The release Playwright configuration uses one worker. Import workers, large Reader measurements and concurrent browser contexts otherwise contend for host CPU and produce timeout-only failures; test timeouts and performance budgets remain unchanged.
 
 ## Risk matrix
 

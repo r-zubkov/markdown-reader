@@ -33,6 +33,7 @@ import {
   type StorageDocumentVersionRecord,
   type StorageSpikeResult,
 } from "@/infrastructure/db/storage-atomicity-spike";
+import { isPersistedHtmlAllowed } from "@/infrastructure/db/persisted-html-validator";
 
 export const DB_SCHEMA_VERSION = 4;
 export { PIPELINE_VERSION };
@@ -152,7 +153,9 @@ export class DexieDocumentRepository implements DocumentRepository {
       input.endOrdinalInclusive,
     );
     if (!chunks.ok) return failure(chunks.error.code);
-    if (!isChunkWindow(chunks.value, input)) return failure("INVALID_PERSISTED_RECORD");
+    if (!isChunkWindow(chunks.value, input) || chunks.value.some((chunk) => !isPersistedHtmlAllowed(chunk.html))) {
+      return failure("INVALID_PERSISTED_RECORD");
+    }
     return success(chunks.value.map((chunk) => ({
       anchors: chunk.blockAnchors.map((anchor) => ({
         anchor: {
@@ -464,7 +467,7 @@ function clampRatio(value: number): number { return Math.min(1, Math.max(0, Numb
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null; }
 function isBlobLike(value: unknown): value is Blob { return typeof value === "object" && value !== null && "size" in value && typeof value.size === "number" && "arrayBuffer" in value && typeof value.arrayBuffer === "function"; }
 
-/** The brand is applied only after this adapter has validated a current ready chunk. */
+/** The brand is applied only after current-version, shape and HTML-policy validation. */
 function makeSanitizedHtml(value: string, pipelineVersion: number): SanitizedHtml {
   return { value, pipelineVersion } as SanitizedHtml;
 }

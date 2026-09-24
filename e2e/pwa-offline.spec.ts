@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 const sourceMarker = "PWA_LOCAL_DOCUMENT_MARKER_2026";
+const deploymentCsp = "default-src 'self'; script-src 'self'; worker-src 'self'; style-src 'self' 'sha256-38RhXrc7EdReTKsOm23ZPOCUgniTUUcjky8QOOrQx6o='; style-src-attr 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; manifest-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 
 test.describe("P05-T02 production PWA", () => {
   test("precache contains only app assets and a ready IndexedDB document reopens offline", async ({ context, page }) => {
@@ -34,6 +35,41 @@ test.describe("P05-T02 production PWA", () => {
     const offlineStorage = await inspectLocalStorageBoundaries(page, sourceMarker);
     expect(offlineStorage.cacheContainsDocumentMarker).toBe(false);
     expect(offlineStorage.indexedDbChunkCount).toBeGreaterThan(0);
+  });
+
+  test("loads the production worker and Reader under the deployment CSP", async ({ page }) => {
+    const policyErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.type() === "error" && /content security policy/iu.test(message.text())) {
+        policyErrors.push(message.text());
+      }
+    });
+    await page.route("**/*", async (route) => {
+      if (route.request().resourceType() !== "document") {
+        await route.continue();
+        return;
+      }
+      const response = await route.fetch();
+      await route.fulfill({
+        response,
+        headers: {
+          ...response.headers(),
+          "content-security-policy": deploymentCsp,
+        },
+      });
+    });
+
+    const response = await page.goto("/");
+    expect(response?.headers()["content-security-policy"]).toBe(deploymentCsp);
+    await page.getByTestId("library-import-trigger").click();
+    await page.getByTestId("import-file-input").setInputFiles({
+      name: "csp-reader.md",
+      mimeType: "text/markdown",
+      buffer: Buffer.from("# CSP reader\n\nWorker and Reader remain available."),
+    });
+    await page.locator("a.import-overlay__open").click();
+    await expect(page.getByText("Worker and Reader remain available.")).toBeVisible();
+    expect(policyErrors).toEqual([]);
   });
 });
 
@@ -92,6 +128,7 @@ function isAppAssetUrl(value: string): boolean {
   const { pathname } = new URL(value);
   return pathname === "/index.html"
     || pathname === "/manifest.webmanifest"
+    || pathname === "/theme-bootstrap.js"
     || pathname.startsWith("/assets/")
     || pathname.startsWith("/icons/");
 }
