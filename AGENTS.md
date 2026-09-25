@@ -31,7 +31,7 @@ All paths in specifications are relative to the repository root.
 - Phase order: `codex-spec/implementation-roadmap.md`.
 - Quality and final acceptance: `codex-spec/testing-and-quality.md` and `codex-spec/final-acceptance-checklist.md`.
 
-The root `README.md` is for humans: it briefly explains the product, actual status and real run commands. Do not turn it into a duplicate of the specifications. All execution documents except this file must remain inside `codex-spec/`.
+The root `README.md` is a concise human-facing project overview. Keep the product purpose and capabilities, privacy/storage behavior, minimal local run/build commands, and a short directory-purpose map limited to meaningful root directories and first-level `src/` directories. Do not add task IDs or phase status, completion evidence, exhaustive verification commands, Codex/sandbox details, generated/local directories or file-by-file repository inventories. Detailed engineering status and evidence belong in `codex-spec/` or `docs/`; do not duplicate them in the root README. All execution documents except this file must remain inside `codex-spec/`.
 
 ## Architectural Boundaries
 
