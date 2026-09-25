@@ -18,8 +18,6 @@
 
 ## Технологический стек
 
-Целевой стек, зафиксированный в спецификации:
-
 - `React 19.2` с совместимым stable patch + `TypeScript` в strict-режиме;
 - `Vite 8.1` для разработки и сборки;
 - `React Router 8` в Declarative mode для маршрутов библиотеки и документа;
@@ -29,10 +27,6 @@
 - `lowlight` для безопасной подсветки кода;
 - Web Worker для ресурсоёмкой обработки;
 - PWA app shell для повторного offline-запуска.
-
-Точные совместимые версии фиксируются lockfile во время bootstrap, а не придумываются заранее.
-
-Bootstrap P00-T01 зафиксировал базовый runtime/toolchain: Node `v24.20.0`, `pnpm@11.25.0`, React `19.2.8`, React DOM `19.2.8`, React Router `8.3.1`, Vite `8.1.5`, TypeScript `6.0.3`, ESLint `10.9.1`, Vitest `4.1.11`, Playwright `1.62.1`.
 
 ## Архитектура
 
@@ -55,41 +49,40 @@ UI не хранит полный Markdown-корпус. Persistent source of tr
 
 ## Быстрый старт
 
-Bootstrap [P00-T01: Project bootstrap](codex-spec/tasks/P00-T01-project-bootstrap.md) завершён: в репозитории есть `package.json`, `pnpm-lock.yaml`, Vite/React entry, строгие TS-конфиги, ESLint foundation, Vitest setup и Playwright config.
+Для локального запуска понадобятся Node.js `22.22` или новее и pnpm `11.25`.
 
-Pipeline spike [P00-T02: Content pipeline and limits spike](codex-spec/tasks/P00-T02-content-pipeline-spike.md) завершён и переведён задачей [P02-T01: Production Markdown pipeline](codex-spec/tasks/P02-T01-production-markdown-pipeline.md) в production-контракт. Версия pipeline `4`, версия Worker protocol `2`; принятые лимиты, grammar policy, fallbacks и измерения находятся в [production-pipeline report](docs/benchmarks/production-pipeline.md).
-
-Storage spike [P00-T03: IndexedDB atomicity spike](codex-spec/tasks/P00-T03-storage-atomicity-spike.md) завершён: добавлены Dexie prototype schema/repository, fake-IDB integration tests, Chromium IndexedDB confirmation и [storage-atomicity report](docs/benchmarks/storage-atomicity-spike.md). P01-T02 разблокирован для production schema/repository skeleton.
-
-Virtual reader spike [P00-T04: Continuous virtual reader spike](codex-spec/tasks/P00-T04-virtual-reader-spike.md) завершён: Chromium-сценарии для 20 000 блоков проходят. Выбранная конфигурация и измерения находятся в [virtual-reader-spike report](docs/benchmarks/virtual-reader-spike.md).
-
-Semantic mapping spike [P00-T05: Semantic progress mapping spike](codex-spec/tasks/P00-T05-progress-mapping-spike.md) завершён: добавлены детерминированный same/cross-version mapper, SHA-256 fingerprint блоков, update-pair corpus и [progress-mapping report](docs/benchmarks/progress-mapping-spike.md). Порог similarity остаётся P00 proposal до production corpus rerun.
-
-Проверенная среда:
-
-- Node `>=22.22.0`;
-- Corepack с `pnpm@11.25.0` из `packageManager`.
-
-Проверенные команды:
-
-```powershell
-corepack pnpm install --frozen-lockfile
-corepack pnpm dev
-corepack pnpm typecheck
-corepack pnpm lint
-corepack pnpm test
-corepack pnpm test:security
-corepack pnpm test:bench
-corepack pnpm exec vitest run src/infrastructure/db/storage-atomicity-spike.test.ts --reporter verbose
-$env:PLAYWRIGHT_BROWSERS_PATH = ".ms-playwright"
-corepack pnpm exec playwright test e2e/storage-atomicity.spec.ts --project=chromium
-corepack pnpm build
-corepack pnpm preview
-corepack pnpm test:e2e:pwa
-corepack pnpm test:e2e:list
+```sh
+pnpm install
+pnpm dev
 ```
 
-В Codex sandbox эти команды запускались с `COREPACK_HOME=.corepack`, чтобы Corepack cache оставался внутри рабочей папки. Chromium для browser confirmation установлен в workspace-local `.ms-playwright/`; Playwright проверен с отдельно запущенным Vite и `reuseExistingServer`, потому что managed webServer teardown зависает только в этом окружении.
+После запуска откройте адрес, который покажет Vite (обычно `http://localhost:5173`).
+
+Чтобы проверить production-сборку локально:
+
+```sh
+pnpm build
+pnpm preview
+```
+
+## Структура проекта
+
+- `src/` — исходный код приложения:
+  - `app/` — точка сборки приложения и общие сервисы;
+  - `application/` — сценарии использования и интерфейсы между слоями;
+  - `domain/` — модели и бизнес-правила без привязки к React и браузерному хранилищу;
+  - `features/` — пользовательские функции: библиотека, импорт и чтение;
+  - `infrastructure/` — работа с IndexedDB, браузерными API и PWA;
+  - `shared/` — общие ресурсы, включая локализацию;
+  - `styles/` — глобальные стили приложения и документов;
+  - `test/` — общая тестовая инфраструктура, фикстуры и тестовые наборы;
+  - `ui/` — переиспользуемые компоненты интерфейса и темы;
+  - `workers/` — фоновая обработка Markdown.
+- `public/` — статические файлы, иконки и настройки хостинга.
+- `e2e/` — браузерные сценарии Playwright.
+- `docs/` — отчёты по проверкам и технические материалы.
+- `codex-spec/` — требования, архитектурные решения и задачи проекта.
+- `tools/` — внутренние инструменты разработки.
 
 ## Документация для разработки
 
@@ -104,73 +97,3 @@ corepack pnpm test:e2e:list
 - [progress-persistence.md](docs/benchmarks/progress-persistence.md) — принятые правила semantic progress, throttling, flush и восстановления P03-T04.
 - [release-candidate-2026-09-25.md](docs/release-candidate-2026-09-25.md) — финальная проверка MVP, release-команды, ограничения, waivers и deployment handoff.
 - [tasks/](codex-spec/tasks/) — атомарные задания для реализации по одному.
-
-## Текущий статус
-
-- Спецификация: `COMPLETE · QA PASSED`.
-- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 COMPLETE · P03 COMPLETE · P04 COMPLETE · P05 COMPLETE · MVP ACCEPTED`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`, `P03-T03`, `P03-T04`, `P04-T01`, `P04-T02`, `P04-T03`, `P05-T01`, `P05-T02`, `P05-T03`, `P05-T04`, `P05-T05`.
-- Финальное решение: `ACCEPTED` от 2026-09-25. Доказательства и ограничения перечислены в [release-candidate handoff](docs/release-candidate-2026-09-25.md).
-
-## Текущая структура репозитория
-
-```text
-README.md
-AGENTS.md
-package.json
-pnpm-lock.yaml
-index.html
-vite.config.ts
-vitest.config.ts
-vitest.security.config.ts
-vitest.bench.config.ts
-playwright.config.ts
-eslint.config.mjs
-tsconfig.json
-tsconfig.app.json
-tsconfig.worker.json
-tsconfig.test.json
-tsconfig.node.json
-.npmrc
-codex-spec/
-  architecture/
-  design/
-  features/
-  tasks/
-  README.md
-  project-source-of-truth.md
-  requirements-and-decisions.md
-  testing-and-quality.md
-  implementation-roadmap.md
-  implementation-status.md
-  execution-playbook.md
-  final-acceptance-checklist.md
-docs/
-  benchmarks/
-    pipeline-spike.md
-    progress-mapping-spike.md
-    storage-atomicity-spike.md
-    virtual-reader-spike.md
-src/
-  app/
-  domain/
-    content/
-    reading/
-  features/
-    reader-spike/
-  infrastructure/
-    db/
-  main.tsx
-  styles/
-  test/
-    bench/
-    corpus/
-    fixtures/
-    security/
-  workers/
-tools/
-  eslint-rules/
-e2e/
-```
-
-Структура включает завершённые P00 spikes, P01 walking skeleton, safe import P02, полный core Reader P03, lifecycle P04 и принятый release-кандидат P05 с PWA, storage/privacy UX и финальными security/accessibility/browser gates.
