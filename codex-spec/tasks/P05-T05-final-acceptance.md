@@ -50,11 +50,11 @@ Docs reference old command/path, skipped physical test, benchmark from different
 
 ## Acceptance criteria
 
-- [ ] Every MVP requirement maps to implemented code/task/test evidence.
-- [ ] Final checklist has no unchecked blocker or silent waiver.
-- [ ] All final commands pass on recorded release-candidate state.
-- [ ] Deployment/browser/storage/privacy limitations are explicit and accurate.
-- [ ] Roadmap/status/terms match actual code and post-MVP remains separate.
+- [x] Every MVP requirement maps to implemented code/task/test evidence.
+- [x] Final checklist has no unchecked blocker or silent waiver.
+- [x] All final commands pass on recorded release-candidate state.
+- [x] Deployment/browser/storage/privacy limitations are explicit and accurate.
+- [x] Roadmap/status/terms match actual code and post-MVP remains separate.
 
 ## Required tests
 
@@ -66,4 +66,4 @@ Run `pnpm install --frozen-lockfile`, all commands from P05-T04, production prev
 
 ## Completion report
 
-State ACCEPTED/REJECTED, release commit/build, requirement/task counts, command/browser/device evidence, remaining approved waivers/open brand item, deployment instructions and recommended first post-MVP task.
+Status: **ACCEPTED** on 2026-09-25. The signed [acceptance checklist](../final-acceptance-checklist.md) and [release-candidate handoff](../../docs/release-candidate-2026-09-25.md) record the code revision/build, 52 requirements, 25 completed tasks, final command/browser evidence, approved waivers, `OPEN-001`, deployment instructions and recommended first post-MVP task.

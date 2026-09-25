@@ -94,6 +94,8 @@ Task files are authoritative for scope/verification. This roadmap is authoritati
 
 **Gate:** `codex-spec/final-acceptance-checklist.md` complete; all commands/browser/device/manual gates green; no blocking defects.
 
+**Status:** complete. The MVP release candidate was accepted on 2026-09-25; exact evidence, limitations and approved waivers are recorded in `docs/release-candidate-2026-09-25.md`.
+
 ## Parallelism rules
 
 - Parallel tasks may not edit the same contracts/config without explicit coordination. P00 spikes write separate reports and central decisions are merged after results.

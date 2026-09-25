@@ -102,14 +102,15 @@ corepack pnpm test:e2e:list
 - [virtual-reader-spike.md](docs/benchmarks/virtual-reader-spike.md) — результаты P00-T04 по виртуализации, bounded cache, focus и browser matrix.
 - [progress-mapping-spike.md](docs/benchmarks/progress-mapping-spike.md) — результаты P00-T05 по semantic anchors, confidence policy и update pairs.
 - [progress-persistence.md](docs/benchmarks/progress-persistence.md) — принятые правила semantic progress, throttling, flush и восстановления P03-T04.
+- [release-candidate-2026-09-25.md](docs/release-candidate-2026-09-25.md) — финальная проверка MVP, release-команды, ограничения, waivers и deployment handoff.
 - [tasks/](codex-spec/tasks/) — атомарные задания для реализации по одному.
 
 ## Текущий статус
 
 - Спецификация: `COMPLETE · QA PASSED`.
-- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 COMPLETE · P03 COMPLETE · P04 COMPLETE · P05 IN PROGRESS`.
-- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`, `P03-T03`, `P03-T04`, `P04-T01`, `P04-T02`, `P04-T03`, `P05-T01`, `P05-T02`, `P05-T03`.
-- Следующая разблокированная задача: `P05-T04`.
+- Реализация: `P00 COMPLETE · P01 WALKING SKELETON COMPLETE · P02 COMPLETE · P03 COMPLETE · P04 COMPLETE · P05 COMPLETE · MVP ACCEPTED`.
+- Завершённые task IDs: `P00-T01`, `P00-T02`, `P00-T03`, `P00-T04`, `P00-T05`, `P00-T06`, `P01-T01`, `P01-T02`, `P01-T03`, `P01-T04`, `P02-T01`, `P02-T02`, `P02-T03`, `P03-T01`, `P03-T02`, `P03-T03`, `P03-T04`, `P04-T01`, `P04-T02`, `P04-T03`, `P05-T01`, `P05-T02`, `P05-T03`, `P05-T04`, `P05-T05`.
+- Финальное решение: `ACCEPTED` от 2026-09-25. Доказательства и ограничения перечислены в [release-candidate handoff](docs/release-candidate-2026-09-25.md).
 
 ## Текущая структура репозитория
 
@@ -172,4 +173,4 @@ tools/
 e2e/
 ```
 
-Структура уже включает P00 spikes, P01 walking skeleton, safe import P02, полный core Reader P03 и lifecycle P04 с transactional delete, mapped replacement и Reader recovery hardening. Release PWA и финальные platform-аудиты остаются в P05.
+Структура включает завершённые P00 spikes, P01 walking skeleton, safe import P02, полный core Reader P03, lifecycle P04 и принятый release-кандидат P05 с PWA, storage/privacy UX и финальными security/accessibility/browser gates.

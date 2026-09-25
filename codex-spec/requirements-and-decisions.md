@@ -76,7 +76,7 @@
 | NFR-002 | Forced cancel/termination/reload never changes the current ready version and never leaves a visible partial document. | SOURCE |
 | NFR-003 | Security corpus does not execute scripts/events, create clobbering IDs or leave unsafe URLs/attributes. | SOURCE |
 | NFR-004 | Content/diagnostics are not sent or logged; remote image request is the explicit policy exception. | SOURCE |
-| NFR-005 | Target is WCAG 2.2 AA; automated a11y is supplemented by keyboard, NVDA/VoiceOver, zoom/reflow and physical touch smoke. | SOURCE |
+| NFR-005 | Target is WCAG 2.2 AA; automated a11y is supplemented by keyboard, NVDA with Chrome, zoom/reflow and responsive mobile-Chromium smoke. VoiceOver/Safari/iOS evidence is outside the MVP browser matrix under DEC-022. | SOURCE + VERIFIED |
 | NFR-006 | Release tests current stable Google Chrome through Playwright Chromium; mobile behavior is covered by responsive Chromium/mobile-Chrome emulation. Firefox, Safari, WebKit and physical iPhone testing are outside the MVP matrix. The hard supported floor is Chrome 111. | SOURCE (latest explicit) + VERIFIED |
 | NFR-007 | Source Blob enables rebuild; quota/eviction are explained, but MVP honestly does not promise backup. | SOURCE |
 | NFR-008 | Offline ready documents remain readable; unavailable remote media and update receive separate nonfatal states. | SOURCE |
@@ -190,7 +190,7 @@ There are no blocking user open questions. Numeric thresholds are mandatory PoC 
 | TECH-002, TECH-008, TECH-010 | `codex-spec/architecture/system-architecture.md`, `codex-spec/architecture/data-and-state.md` | P01-T02, P00-T03 | Import-boundary lint/tests; migration/rebuild tests |
 | TECH-005, NFR-003, NFR-004 | F02, `codex-spec/architecture/system-architecture.md` | P00-T02, P02-T01, P05-T04 | Malicious corpus + CSP + network/log audit |
 | UX-003, UX-006 | `codex-spec/design/screens-and-user-flows.md`, F01 | P02-T02, P05-T03 | State-machine component tests; actionable errors |
-| UX-005, UX-007, NFR-005 | `codex-spec/design/ui-design-system.md`, `codex-spec/design/screens-and-user-flows.md` | P00-T06, P03-T04, P05-T01, P05-T04 | 320/zoom/keyboard/NVDA/VoiceOver/axe matrix |
+| UX-005, UX-007, NFR-005 | `codex-spec/design/ui-design-system.md`, `codex-spec/design/screens-and-user-flows.md` | P00-T06, P03-T04, P05-T01, P05-T04 | 320/equivalent-zoom/keyboard/axe matrix plus the explicit NVDA and real browser-zoom waivers; VoiceOver/Safari/iOS remain outside DEC-022 |
 | NFR-001, NFR-006 | F00, `codex-spec/testing-and-quality.md` | P00-T02, P00-T04, P00-T05, P00-T06 | Stored benchmark reports and browser/device gate |
 | NFR-002, NFR-007 | F01, F06, `codex-spec/architecture/data-and-state.md` | P00-T03, P05-T03 | Termination/quota/reprocess recovery tests |
 | NFR-009 | `codex-spec/design/ui-design-system.md`, `codex-spec/design/screens-and-user-flows.md` | P01-T01, P05-T01 | String catalog/Intl/long-Russian-copy checks |
