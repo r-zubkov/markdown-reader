@@ -2,16 +2,18 @@
 
 ## Goal
 
-Develop a local browser-only Markdown file reader as a safe, responsive, accessible, production-oriented MVP. The code must preserve all document content, data locality and semantic reading position.
+Maintain and extend the accepted local browser-only Markdown file reader as a safe, responsive, accessible, production-oriented product. The code must preserve all document content, data locality and semantic reading position.
 
 ## Before Any Task
 
-1. Read this file, the concrete task file from `codex-spec/tasks/` and its `Read before starting` section.
-2. Inspect the real repository structure, `package.json`, lockfile, current git diff and already completed task IDs.
-3. Do not repeat completed work and do not overwrite user changes.
-4. If code and specification differ substantially, stop and describe the mismatch; do not make a silent choice.
+1. Read this file.
+2. If the request has no existing concrete task, follow `codex-spec/change-workflow.md` to register, classify and prepare the change before editing application code. A qualifying fast-track change may create and execute one task in the same session.
+3. Read the concrete task file from `codex-spec/tasks/` and its `Read before starting` section.
+4. Inspect the real repository structure, `package.json`, lockfile, current git diff and already completed task IDs.
+5. Do not repeat completed work and do not overwrite user changes.
+6. If code and specification differ substantially, stop and describe the mismatch; do not make a silent choice.
 
-Priority: latest explicit user instruction -> safety/integrity -> `codex-spec/requirements-and-decisions.md` -> task -> feature spec -> architecture/design/data docs -> working assumption.
+Priority: latest explicit user instruction -> safety/integrity -> `codex-spec/requirements-and-decisions.md` -> task -> active change specification -> feature spec -> architecture/design/data docs -> working assumption.
 
 All paths in specifications are relative to the repository root.
 
@@ -27,11 +29,28 @@ All paths in specifications are relative to the repository root.
 - Architecture and data: `codex-spec/architecture/`.
 - UI system, screens and flows: `codex-spec/design/`.
 - Functional contracts: `codex-spec/features/`.
+- New-change lifecycle and gates: `codex-spec/change-workflow.md`.
+- Change lifecycle index: `codex-spec/change-registry.md`.
+- Standard/discovery change artifacts: `codex-spec/changes/`.
+- Reusable specification and task templates: `codex-spec/templates/`.
 - Atomic tasks: `codex-spec/tasks/`.
 - Phase order: `codex-spec/implementation-roadmap.md`.
+- Accepted P00-P05 task evidence: `codex-spec/implementation-status.md`.
+- Current post-MVP task status: `codex-spec/post-mvp-task-status.md`.
 - Quality and final acceptance: `codex-spec/testing-and-quality.md` and `codex-spec/final-acceptance-checklist.md`.
 
 The root `README.md` is a concise human-facing project overview. Keep the product purpose and capabilities, privacy/storage behavior, minimal local run/build commands, and a short directory-purpose map limited to meaningful root directories and first-level `src/` directories. Do not add task IDs or phase status, completion evidence, exhaustive verification commands, Codex/sandbox details, generated/local directories or file-by-file repository inventories. Detailed engineering status and evidence belong in `codex-spec/` or `docs/`; do not duplicate them in the root README. All execution documents except this file must remain inside `codex-spec/`.
+
+## Spec-Driven Change Intake
+
+- An informal idea is not yet an implementation task. Route it through `codex-spec/change-workflow.md` and give it a stable `CHG-NNN` entry before application edits.
+- Keep discovery separate from delivery: proposal/assessment decides whether and what to build; specification owns user-visible `what` and `why`; plan owns technical `how`; atomic task files own executable scope and verification.
+- Respect the user's requested stopping point. Assessment or plan-only requests do not authorize application-code changes.
+- Use the documented fast track only when every boundary is satisfied. New features, broad redesigns, dependencies and schema/protocol/pipeline/security/privacy changes require the standard or discovery track.
+- Resolve material ambiguity before planning. If a choice changes scope, destructive behavior, data compatibility, privacy/security posture, recurring cost or supported platforms, request user direction rather than guessing.
+- Run a read-only cross-artifact analysis before implementation for standard/discovery changes. Critical or high findings block work until fixed in the owning artifact.
+- Custom requirements-quality checklists are reviewer-owned. Implementation must not silently mark them complete.
+- Do not initialize `.specify` or another parallel specification tree without an explicit migration decision. `codex-spec/` remains the execution source of truth.
 
 ## Architectural Boundaries
 

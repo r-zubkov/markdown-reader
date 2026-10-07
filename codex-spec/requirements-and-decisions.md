@@ -82,6 +82,7 @@
 | NFR-008 | Offline ready documents remain readable; unavailable remote media and update receive separate nonfatal states. | SOURCE |
 | NFR-009 | UI locale is Russian; strings are separated from domain codes; sizes/percentages use `Intl`. | SOURCE |
 | NFR-010 | All phase gates require typecheck/lint/tests/build and relevant E2E/security/performance checks; failed check blocks completion. | DERIVED |
+| NFR-011 | New post-MVP work follows a traceable change lifecycle from intake and clarification through specification, plan, atomic tasks, consistency analysis, implementation and convergence; only bounded low-risk work may use the fast track. | SOURCE (latest explicit) + DERIVED |
 
 ## Found Conflicts and Resolutions
 
@@ -120,6 +121,7 @@
 | DEC-020 | Canonical terminology: product `Markdown Reader`, entities `Document`/`DocumentVersion`, identifier `documentId`, route `/documents/:documentId`. | SOURCE (latest) | Change only together with data schema, routes, repository contracts, UX copy and migration decision. |
 | DEC-021 | `AGENTS.md` and every file under `codex-spec/` are English-only execution documents; exact Russian UI copy belongs in source catalogs or tests when needed. | SOURCE (latest explicit) | Review only if project documentation governance changes. |
 | DEC-022 | Google Chrome is the only browser in the MVP support and release-test commitment, automated through Playwright Chromium. Firefox, Safari, WebKit and physical iPhone testing are explicitly excluded; responsive mobile Chrome remains required through Chromium emulation. | SOURCE (latest explicit) | Adding another browser requires its own compatibility pass and browser/device evidence. |
+| DEC-023 | Post-MVP development uses the repository-native workflow in `codex-spec/change-workflow.md`. `AGENTS.md` plus canonical `codex-spec` documents remain the constitution/source of truth; GitHub Spec Kit concepts are adapted without initializing a duplicate `.specify` tree. | SOURCE (latest explicit) + DERIVED | Revisit only through an explicit tool-adoption and artifact-migration decision. |
 
 ## Assumptions Register
 
@@ -195,3 +197,4 @@ There are no blocking user open questions. Numeric thresholds are mandatory PoC 
 | NFR-002, NFR-007 | F01, F06, `codex-spec/architecture/data-and-state.md` | P00-T03, P05-T03 | Termination/quota/reprocess recovery tests |
 | NFR-009 | `codex-spec/design/ui-design-system.md`, `codex-spec/design/screens-and-user-flows.md` | P01-T01, P05-T01 | String catalog/Intl/long-Russian-copy checks |
 | NFR-010 | `codex-spec/testing-and-quality.md`, `codex-spec/implementation-roadmap.md`, tasks | P05-T05 | All required commands green; final checklist signed |
+| NFR-011, DEC-023 | `codex-spec/change-workflow.md`, `codex-spec/change-registry.md`, `AGENTS.md` | P06-T01 | Workflow/templates/registry reconciliation, local-link audit and cross-artifact analysis |

@@ -145,3 +145,5 @@ A task is done only when its AC and required tests pass and completion report li
 - final checklist completed with every waiver explicitly approved, scoped and linked.
 
 Failed/flaky required tests block completion. A flaky test must be fixed or quarantined only with owner, reason and replacement evidence; rerunning until green is not evidence.
+
+For post-MVP standard/discovery work, task completion is necessary but not sufficient to complete the parent change. The change must also pass the consistency and convergence gates in `codex-spec/change-workflow.md`, reconcile affected canonical documents and record residual risks in its completion artifact.

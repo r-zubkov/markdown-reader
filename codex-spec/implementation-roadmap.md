@@ -9,6 +9,7 @@ flowchart TD
     P2 --> P3["P03 · Complete reader"]
     P3 --> P4["P04 · Lifecycle"]
     P4 --> P5["P05 · Platform + release"]
+    P5 --> P6["P06 · Change governance"]
 ```
 
 Task files are authoritative for scope/verification. This roadmap is authoritative for order/gates.
@@ -96,6 +97,22 @@ Task files are authoritative for scope/verification. This roadmap is authoritati
 
 **Status:** complete. The MVP release candidate was accepted on 2026-09-25; exact evidence, limitations and approved waivers are recorded in `docs/release-candidate-2026-09-25.md`.
 
+## Post-MVP evolution
+
+The P00-P05 MVP acceptance is a historical baseline and remains valid. New phases extend the product or its engineering process without retroactively reopening that acceptance. Each new request is governed by [change-workflow.md](change-workflow.md) and indexed in [change-registry.md](change-registry.md) before application implementation.
+
+## P06 — Spec-driven change governance
+
+**Outcome:** future feature, design, bug and technical requests have a proportional, traceable route from informal intent to verified atomic tasks and convergence.
+
+| Task | Result | Dependencies / parallelism |
+|---|---|---|
+| P06-T01 | Repository-native intake, clarification, specification, planning, decomposition, analysis and convergence workflow | P05-T05; single owner for governance documents |
+
+**Gate:** workflow, registry, templates and canonical governance documents agree; Markdown local links and diff integrity checks pass; no runtime or dependency file changes.
+
+**Status:** complete. CHG-001 records the decision and evidence; the accepted MVP product baseline is unchanged.
+
 ## Parallelism rules
 
 - Parallel tasks may not edit the same contracts/config without explicit coordination. P00 spikes write separate reports and central decisions are merged after results.
@@ -103,6 +120,7 @@ Task files are authoritative for scope/verification. This roadmap is authoritati
 - P02 pipeline/UI can run against shared protocol contract; one owner changes protocol at a time.
 - P03 continuous/sections can run in parallel after TOC/state contracts, but P03-T04 integrates only after both.
 - P05 theme and PWA can run in parallel; storage/global status integration waits for both relevant shell/platform boundaries.
+- Post-MVP tasks may be parallel only when their change task plan names disjoint ownership and one owner for each shared contract, schema, migration or central configuration.
 - A downstream task must inspect completed code, not assume task status from filename.
 
 ## Functional checkpoints
@@ -115,3 +133,4 @@ Task files are authoritative for scope/verification. This roadmap is authoritati
 | P03 | Full core reading in both modes with TOC and persistent position |
 | P04 | Complete document lifecycle and recovery/accessibility behavior |
 | P05 | Offline-capable, themed, hardened release candidate |
+| P06 | Repository-native spec-driven change intake and delivery governance |

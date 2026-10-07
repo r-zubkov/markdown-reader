@@ -47,7 +47,7 @@ One role: the owner of a local Markdown-document library in the current browser 
 
 ## After MVP
 
-Priority: backup/export + restore -> full-document search -> typography controls -> bookmarks -> notes/collections -> local asset packages -> optional sync. Each capability requires its own schema/feature spec.
+Priority: backup/export + restore -> full-document search -> typography controls -> bookmarks -> notes/collections -> local asset packages -> optional sync. This order is directional, not pre-approved implementation scope. Each capability enters through `codex-spec/change-workflow.md` and requires its own appropriate behavior, schema and feature specification before implementation.
 
 ## Explicitly Excluded
 
